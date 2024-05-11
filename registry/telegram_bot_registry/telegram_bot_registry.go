@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-var mutexUserConfig = sync.RWMutex{}
+var mutexUserConfig sync.RWMutex
 var globalTelegramBotByToken map[string]TelegramBot
 var shuttingDown bool
 
@@ -82,4 +82,8 @@ func getTelegramBotByTokenRL(token string, acquireRLock bool) (bot TelegramBot, 
 
 	bot, found = globalTelegramBotByToken[token]
 	return
+}
+
+func init() {
+	globalTelegramBotByToken = make(map[string]TelegramBot)
 }

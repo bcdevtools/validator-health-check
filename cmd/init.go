@@ -54,7 +54,7 @@ users:
 }
 
 func writeYamlFile(identity, filePath, content string) {
-	_, err := os.Stat(identity)
+	_, err := os.Stat(filePath)
 
 	if err == nil {
 		fmt.Printf("%s file already exists, skip writing %s\n", identity, filePath)
@@ -70,8 +70,10 @@ func writeYamlFile(identity, filePath, content string) {
 	err = file.Chmod(constants.FILE_PERMISSION)
 	libutils.ExitIfErr(err, fmt.Sprintf("Unable to set permission for new %s file %s to %s", identity, filePath, constants.FILE_PERMISSION_STR))
 	_, err = file.WriteString(fmt.Sprintf(content))
-	fmt.Printf("ERR: unable to write content for new %s file %s\n", identity, filePath)
-	panic(err)
+	if err != nil {
+		fmt.Printf("ERR: unable to write content for new %s file %s\n", identity, filePath)
+		panic(err)
+	}
 }
 
 func init() {

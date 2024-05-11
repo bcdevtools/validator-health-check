@@ -66,6 +66,9 @@ var startCmd = &cobra.Command{
 		logger.Info("launching go routine to hot-reload users config")
 		go routineReloadUsersConfig(ctx)
 
+		time.Sleep(3 * time.Second)
+		go routineInformStartup(ctx)
+
 		// Create workers
 
 		// Start workers
@@ -143,17 +146,37 @@ func routineReloadUsersConfig(ctx *config.AppContext) {
 	}
 }
 
+func routineInformStartup(ctx *config.AppContext) {
+	logger := ctx.Logger
+	defer libapp.TryRecoverAndExecuteExitFunctionIfRecovered(logger)
+
+	for {
+		time.Sleep(1 * time.Second)
+
+		if len(tbotreg.GetAllTelegramBotsRL()) > 0 {
+			break
+		}
+	}
+
+	safeSendTelegramMessageToAll(ctx, "startup", "validator health-check bot is started", false)
+}
+
 func safeShutdownTelegram(ctx *config.AppContext) {
+	tbotreg.FlagShuttingDownWL()
+	safeSendTelegramMessageToAll(ctx, "shutdown", "validator health-check bot is shutting down", true)
+}
+
+func safeSendTelegramMessageToAll(ctx *config.AppContext, action string, message string, stop bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			ctx.Logger.Error("panic occurred during safe shutdown telegram", "error", r)
+			ctx.Logger.Error("panic occurred during send message to all users", "error", r)
 		}
 	}()
 
-	tbotreg.FlagShuttingDownWL()
-
 	for _, bot := range tbotreg.GetAllTelegramBotsRL().SortByPriority() {
-		bot.StopReceivingUpdates()
+		if stop {
+			bot.StopReceivingUpdates()
+		}
 
 		chatIds := bot.GetAllChainIdsRL()
 		if len(chatIds) > 0 {
@@ -161,17 +184,17 @@ func safeShutdownTelegram(ctx *config.AppContext) {
 				_bot := bot.GetInnerTelegramBot()
 				for _, chatId := range chatIds {
 					err := utils.Retry(func() error {
-						_, err := _bot.SendMessage("validator health-check bot is shutting down", chatId)
+						_, err := _bot.SendMessage(message, chatId)
 						return err
 					})
 					if err != nil {
-						ctx.Logger.Error("failed to send telegram message to chat", "chat-id", chatId, "priority", bot.IsPriorityRL(), "error", err.Error())
+						ctx.Logger.Error("failed to send telegram message to chat", "chat-id", chatId, "action", action, "priority", bot.IsPriorityRL(), "error", err.Error())
 					}
 				}
 			} else {
-				err := bot.GetInnerTelegramBot().SendMessageToMultipleChats("validator health-check bot is shutting down", chatIds, nil)
+				err := bot.GetInnerTelegramBot().SendMessageToMultipleChats(message, chatIds, nil)
 				if err != nil {
-					ctx.Logger.Error("failed to send telegram message to multiple chats", "chat-count", len(chatIds), "priority", bot.IsPriorityRL(), "error", err.Error())
+					ctx.Logger.Error("failed to send telegram message to multiple chats", "chat-count", len(chatIds), "action", action, "priority", bot.IsPriorityRL(), "error", err.Error())
 				}
 			}
 		}
