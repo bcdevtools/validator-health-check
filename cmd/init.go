@@ -25,36 +25,53 @@ var initCmd = &cobra.Command{
 			cobra.CheckErr(err)
 		}
 
-		cfgFile := path.Join(homeDir, constants.DEFAULT_CONFIG_FILE_NAME)
+		cfgFile := path.Join(homeDir, constants.CONFIG_FILE_NAME)
+		usersFile := path.Join(homeDir, constants.USERS_FILE_NAME)
 
-		_, err = os.Stat(cfgFile)
-		if err != nil && os.IsNotExist(err) {
-			fmt.Printf("Config file '%s' does not exists, going to create new file with permission %s\n", cfgFile, constants.FILE_PERMISSION_STR)
-			file, err := os.Create(cfgFile)
-			libutils.ExitIfErr(err, fmt.Sprintf("Unable to create config file %s", cfgFile))
-			err = file.Chmod(constants.FILE_PERMISSION)
-			libutils.ExitIfErr(err, fmt.Sprintf("Unable to set permission for new config file %s to %s", cfgFile, constants.FILE_PERMISSION_STR))
-			_, err = file.WriteString(
-				// trailing style: 2 spaces
-				fmt.Sprintf(`# %s's configuration file
+		writeYamlFile("Config", cfgFile, // trailing style: 2 spaces
+			fmt.Sprintf(`# %s's configuration file
+general:
+  hot-reload: 5m
+worker:
 logging:
   level: info # debug || info || error
   format: json # text || json
-worker:
-secrets:
-  telegram-token: # leave it empty to disable telegram, but it will crash if you invoke function to send message
-endpoints:
-telegram:
-  log-channel-id: 0
-  error-channel-id: 0
 `, constants.APP_NAME))
-			libutils.ExitIfErr(err, fmt.Sprintf("Unable to write content for new config file %s", cfgFile))
-		} else if err != nil {
-			cobra.CheckErr(err)
-		}
 
-		fmt.Println("Done")
+		writeYamlFile("User", usersFile, // trailing style: 2 spaces
+			fmt.Sprintf(`# %s's users configuration file
+users:
+  username1:
+    root: false
+    telegram:
+      username: "UserName1"
+      id: -1
+      token: "token"
+`, constants.APP_NAME))
+
+		fmt.Println("Initialized successfully!")
 	},
+}
+
+func writeYamlFile(identity, filePath, content string) {
+	_, err := os.Stat(identity)
+
+	if err == nil {
+		fmt.Printf("%s file already exists, skip writing %s\n", identity, filePath)
+		return
+	}
+
+	if !os.IsNotExist(err) {
+		panic(err)
+	}
+	fmt.Printf("%s file does not exists, going to create new file with permission %s\n", filePath, constants.FILE_PERMISSION_STR)
+	file, err := os.Create(filePath)
+	libutils.ExitIfErr(err, fmt.Sprintf("Unable to create %s file %s", identity, filePath))
+	err = file.Chmod(constants.FILE_PERMISSION)
+	libutils.ExitIfErr(err, fmt.Sprintf("Unable to set permission for new %s file %s to %s", identity, filePath, constants.FILE_PERMISSION_STR))
+	_, err = file.WriteString(fmt.Sprintf(content))
+	fmt.Printf("ERR: unable to write content for new %s file %s\n", identity, filePath)
+	panic(err)
 }
 
 func init() {

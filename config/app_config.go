@@ -8,42 +8,26 @@ import (
 	"github.com/spf13/viper"
 	"os"
 	"path"
+	"time"
 )
 
 // AppConfig is the structure representation of configuration from `config.yaml` file
 type AppConfig struct {
-	Logging        logtypes.LoggingConfig `mapstructure:"logging"`
-	WorkerConfig   WorkerConfig           `mapstructure:"worker"`
-	SecretConfig   SecretConfig           `mapstructure:"secrets"`
-	Endpoints      EndpointsConfig        `mapstructure:"endpoints"`
-	TelegramConfig TelegramConfig         `mapstructure:"telegram"`
+	General      GeneralConfig          `mapstructure:"general"`
+	WorkerConfig WorkerConfig           `mapstructure:"worker"`
+	Logging      logtypes.LoggingConfig `mapstructure:"logging"`
 }
 
-// WorkerConfig is the structure representation of configuration from `config.yaml` file, at `worker` section.
-// It holds configuration related to how the process would work
+type GeneralConfig struct {
+	HotReloadInterval time.Duration `mapstructure:"hot-reload"`
+}
+
 type WorkerConfig struct {
 }
 
-// SecretConfig is the structure representation of configuration from `config.yaml` file, at `secret` section.
-// Secret keys, tokens,... can be putted here
-type SecretConfig struct {
-	TelegramToken string `mapstructure:"telegram-token"`
-}
-
-// EndpointsConfig holds nested configurations relates to remote endpoints
-type EndpointsConfig struct {
-}
-
-// TelegramConfig is the structure representation of configuration from `config.yaml` file, at `telegram` section.
-// It holds configuration of Telegram bot
-type TelegramConfig struct {
-	LogChannelID int64 `mapstructure:"log-channel-id"`
-	ErrChannelID int64 `mapstructure:"error-channel-id"`
-}
-
-// LoadConfig load the configuration from `config.yaml` file within the specified application's home directory
-func LoadConfig(homeDir string) (*AppConfig, error) {
-	cfgFile := path.Join(homeDir, constants.DEFAULT_CONFIG_FILE_NAME)
+// LoadAppConfig load the configuration from `config.yaml` file within the specified application's home directory
+func LoadAppConfig(homeDir string) (*AppConfig, error) {
+	cfgFile := path.Join(homeDir, constants.CONFIG_FILE_NAME)
 
 	fileStats, err := os.Stat(cfgFile)
 	if err != nil {
@@ -57,9 +41,9 @@ func LoadConfig(homeDir string) (*AppConfig, error) {
 	if fileStats.Mode().Perm() != constants.FILE_PERMISSION && fileStats.Mode().Perm() != 0o700 {
 		//goland:noinspection GoBoolExpressions
 		if constants.FILE_PERMISSION == 0o700 {
-			panic(fmt.Errorf("incorrect permission of %s, must be %s", constants.DEFAULT_CONFIG_FILE_NAME, constants.FILE_PERMISSION_STR))
+			panic(fmt.Errorf("incorrect permission of %s, must be %s", constants.CONFIG_FILE_NAME, constants.FILE_PERMISSION_STR))
 		} else {
-			panic(fmt.Errorf("incorrect permission of %s, must be %s or 700", constants.DEFAULT_CONFIG_FILE_NAME, constants.FILE_PERMISSION_STR))
+			panic(fmt.Errorf("incorrect permission of %s, must be %s or 700", constants.CONFIG_FILE_NAME, constants.FILE_PERMISSION_STR))
 		}
 	}
 
@@ -84,25 +68,11 @@ func LoadConfig(homeDir string) (*AppConfig, error) {
 
 // PrintOptions prints the configuration in the `config.yaml` in a nice way, human-readable
 func (c AppConfig) PrintOptions() {
-	headerPrintln("- Tokens configuration:")
-	if len(c.SecretConfig.TelegramToken) > 0 {
-		headerPrintln("  + Telegram bot token has set")
+	headerPrintln("- General:")
+	headerPrintf("  + Hot-reload: %s\n", c.General.HotReloadInterval)
 
-		if len(c.SecretConfig.TelegramToken) > 0 {
-			if c.TelegramConfig.LogChannelID != 0 {
-				headerPrintf("  + Telegram log channel ID: %s\n", c.TelegramConfig.LogChannelID)
-			} else {
-				headerPrintln("  + Missing configuration for log channel ID")
-			}
-			if c.TelegramConfig.ErrChannelID != 0 {
-				headerPrintf("  + Telegram error channel ID: %s\n", c.TelegramConfig.ErrChannelID)
-			} else {
-				headerPrintln("  + Missing configuration for error channel ID")
-			}
-		}
-	} else {
-		headerPrintln("  + Telegram function was disabled because token has not been set")
-	}
+	headerPrintln("- Worker's behavior:")
+	// TODO print worker
 
 	headerPrintln("- Logging:")
 	if len(c.Logging.Level) < 1 {
@@ -116,9 +86,6 @@ func (c AppConfig) PrintOptions() {
 	} else {
 		headerPrintf("  + Format: %s\n", c.Logging.Format)
 	}
-
-	headerPrintln("- Worker's behavior:")
-	// TODO print worker
 }
 
 // headerPrintf prints text with prefix
@@ -133,22 +100,17 @@ func headerPrintln(a string) {
 
 // Validate performs validation on the configuration specified in the `config.yaml` within application's home directory
 func (c AppConfig) Validate() error {
-	if len(c.SecretConfig.TelegramToken) > 0 {
-		if c.TelegramConfig.LogChannelID == 0 {
-			return fmt.Errorf("missing telegram log channel ID")
-		}
-		if c.TelegramConfig.ErrChannelID == 0 {
-			return fmt.Errorf("missing telegram error channel ID")
-		}
+	if c.General.HotReloadInterval < 1*time.Minute {
+		return fmt.Errorf("hot-reload interval must be at least 1 minute")
 	}
+
+	// TODO validator Worker section
 
 	// validate Logging section
 	errLogCfg := c.Logging.Validate()
 	if errLogCfg != nil {
 		return errLogCfg
 	}
-
-	// TODO validator Worker section
 
 	return nil
 }

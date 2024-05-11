@@ -12,6 +12,8 @@ build/
 # Test
 ## Test binary, built with `go test -c`
 *.test
+## Test files created during test execution
+*.test.yaml
 ## Test coverage
 coverage.txt
 

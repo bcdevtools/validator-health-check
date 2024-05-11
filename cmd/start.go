@@ -1,17 +1,17 @@
 package cmd
 
+//goland:noinspection SpellCheckingInspection
 import (
 	"fmt"
 	libapp "github.com/EscanBE/go-lib/app"
 	libcons "github.com/EscanBE/go-lib/constants"
-	logtypes "github.com/EscanBE/go-lib/logging/types"
-	libbot "github.com/EscanBE/go-lib/telegram/bot"
 	libutils "github.com/EscanBE/go-lib/utils"
 	"github.com/bcdevtools/validator-health-check/config"
-	"github.com/bcdevtools/validator-health-check/constants"
+	tbotreg "github.com/bcdevtools/validator-health-check/registry/telegram_bot_registry"
+	usereg "github.com/bcdevtools/validator-health-check/registry/user_registry"
+	"github.com/bcdevtools/validator-health-check/utils"
 	"github.com/bcdevtools/validator-health-check/work"
 	workertypes "github.com/bcdevtools/validator-health-check/work/types"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
@@ -29,33 +29,21 @@ var startCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Process id: %d\n", os.Getpid())
 
-		conf, err := config.LoadConfig(homeDir)
+		appCfg, err := config.LoadAppConfig(homeDir)
 		libutils.ExitIfErr(err, "unable to load configuration")
 
 		// Output some options to console
-		conf.PrintOptions()
+		appCfg.PrintOptions()
 
 		// Perform validation
-		err = conf.Validate()
+		err = appCfg.Validate()
 		libutils.ExitIfErr(err, "failed to validate configuration")
 
-		// Initialize bot
-		var bot *libbot.TelegramBot
-		if len(conf.SecretConfig.TelegramToken) > 0 {
-			bot, err = libbot.NewBot(conf.SecretConfig.TelegramToken)
-			if err != nil {
-				panic(errors.Wrap(err, "Failed to initialize Telegram bot"))
-			}
-			bot.EnableDebug(conf.Logging.Level == logtypes.LOG_LEVEL_DEBUG)
-		}
-
 		// Init execution context
-		ctx := config.NewAppContext(conf, bot)
+		ctx := config.NewAppContext(appCfg)
 		logger := ctx.Logger
 
-		logger.Debug("Application starts")
-
-		_, _ = ctx.SendTelegramLogMessage(fmt.Sprintf("[%s] Application Start", constants.APP_NAME))
+		logger.Debug("application starts")
 
 		// Increase the waitGroup by one and decrease within trapExitSignal
 		waitGroup.Add(1)
@@ -67,20 +55,18 @@ var startCmd = &cobra.Command{
 			// finalize
 			defer waitGroup.Done()
 
-			if ctx.Bot != nil {
-				ctx.Bot.StopReceivingUpdates()
-			}
-
 			// Implements close connection, resources,... here to prevent resource leak
-
+			safeShutdownTelegram(ctx)
 		})
 
 		// Listen for and trap any OS signal to gracefully shutdown and exit
 		trapExitSignal(ctx)
 
+		// Launch go routines
+		logger.Info("launching go routine to hot-reload users config")
+		go routineReloadUsersConfig(ctx)
+
 		// Create workers
-		// Worker defines a job consumer that is responsible for getting assigned tasks and process business logic
-		// to assign task to workers, use a channel
 
 		// Start workers
 		workerWorkingCtx := &workertypes.WorkerContext{
@@ -97,6 +83,99 @@ var startCmd = &cobra.Command{
 		// end
 		waitGroup.Wait()
 	},
+}
+
+func routineReloadUsersConfig(ctx *config.AppContext) {
+	logger := ctx.Logger
+	defer libapp.TryRecoverAndExecuteExitFunctionIfRecovered(logger)
+
+	hotReloadInterval := ctx.AppConfig.General.HotReloadInterval
+	if hotReloadInterval < time.Minute {
+		hotReloadInterval = time.Minute
+	}
+	firstRun := true
+
+	for {
+		if firstRun {
+			firstRun = false
+		} else {
+			time.Sleep(hotReloadInterval)
+		}
+		logger.Info("hot-reload users config")
+
+		// Reload users config
+		usersConf, err := config.LoadUsersConfig(homeDir)
+		if err != nil {
+			logger.Error("failed to hot-reload users config, failed to load", "error", err.Error())
+			continue
+		}
+		userRecords := usersConf.ToUserRecords()
+		if err := userRecords.Validate(); err != nil {
+			logger.Error("failed to hot-reload users config, validation failed", "error", err.Error())
+			continue
+		}
+
+		// Update users config
+		if err := usereg.UpdateUsersConfigWL(userRecords); err != nil {
+			logger.Error("failed to hot-reload users config, failed to update registry", "error", err.Error())
+			continue
+		}
+
+		// Init telegram bot per user
+		for _, userRecord := range userRecords {
+			if userRecord.TelegramConfig == nil {
+				continue
+			}
+
+			// Init telegram bot
+			telegramBot, err := tbotreg.GetTelegramBotByTokenWL(userRecord.TelegramConfig.Token, logger)
+			if err != nil {
+				logger.Error("failed to hot-reload users config, failed to init telegram bot", "identity", userRecord.Identity, "error", err.Error())
+				continue
+			}
+
+			if userRecord.Root {
+				telegramBot.PriorityWL()
+			}
+
+			telegramBot.AddChatIdWL(userRecord.TelegramConfig.UserId)
+		}
+	}
+}
+
+func safeShutdownTelegram(ctx *config.AppContext) {
+	defer func() {
+		if r := recover(); r != nil {
+			ctx.Logger.Error("panic occurred during safe shutdown telegram", "error", r)
+		}
+	}()
+
+	tbotreg.FlagShuttingDownWL()
+
+	for _, bot := range tbotreg.GetAllTelegramBotsRL().SortByPriority() {
+		bot.StopReceivingUpdates()
+
+		chatIds := bot.GetAllChainIdsRL()
+		if len(chatIds) > 0 {
+			if bot.IsPriorityRL() {
+				_bot := bot.GetInnerTelegramBot()
+				for _, chatId := range chatIds {
+					err := utils.Retry(func() error {
+						_, err := _bot.SendMessage("validator health-check bot is shutting down", chatId)
+						return err
+					})
+					if err != nil {
+						ctx.Logger.Error("failed to send telegram message to chat", "chat-id", chatId, "priority", bot.IsPriorityRL(), "error", err.Error())
+					}
+				}
+			} else {
+				err := bot.GetInnerTelegramBot().SendMessageToMultipleChats("validator health-check bot is shutting down", chatIds, nil)
+				if err != nil {
+					ctx.Logger.Error("failed to send telegram message to multiple chats", "chat-count", len(chatIds), "priority", bot.IsPriorityRL(), "error", err.Error())
+				}
+			}
+		}
+	}
 }
 
 func init() {

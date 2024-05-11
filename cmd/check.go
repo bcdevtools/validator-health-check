@@ -13,15 +13,20 @@ var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: fmt.Sprintf("Print and validate %s's configuration, combine with `--home` flag to specify folder", constants.APP_NAME),
 	Run: func(cmd *cobra.Command, args []string) {
-		conf, err := config.LoadConfig(homeDir)
-		libutils.ExitIfErr(err, "unable to load configuration")
+		appConf, err := config.LoadAppConfig(homeDir)
+		libutils.ExitIfErr(err, "unable to load app config")
+
+		usersConf, err := config.LoadUsersConfig(homeDir)
+		libutils.ExitIfErr(err, "unable to load users config")
 
 		// Output some options to console
-		conf.PrintOptions()
+		appConf.PrintOptions()
 
 		// Perform validation
-		err = conf.Validate()
-		libutils.ExitIfErr(err, "failed to validate configuration")
+		err = appConf.Validate()
+		libutils.ExitIfErr(err, "bad app config")
+		err = usersConf.ToUserRecords().Validate()
+		libutils.ExitIfErr(err, "bad users config")
 
 		fmt.Println("Validation completed successfully!")
 	},
