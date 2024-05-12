@@ -7,6 +7,7 @@ import (
 	libcons "github.com/EscanBE/go-lib/constants"
 	libutils "github.com/EscanBE/go-lib/utils"
 	"github.com/bcdevtools/validator-health-check/config"
+	chainreg "github.com/bcdevtools/validator-health-check/registry/chain_registry"
 	tbotreg "github.com/bcdevtools/validator-health-check/registry/telegram_bot_registry"
 	usereg "github.com/bcdevtools/validator-health-check/registry/user_registry"
 	"github.com/bcdevtools/validator-health-check/utils"
@@ -63,11 +64,11 @@ var startCmd = &cobra.Command{
 		trapExitSignal(ctx)
 
 		// Launch go routines
-		logger.Info("launching go routine to hot-reload users config")
-		go routineReloadUsersConfig(ctx)
-
-		time.Sleep(3 * time.Second)
+		logger.Debug("launching go routine to inform startup")
 		go routineInformStartup(ctx)
+
+		logger.Info("launching go routine to hot-reload config")
+		go routineHotReload(ctx)
 
 		// Create workers
 
@@ -88,12 +89,12 @@ var startCmd = &cobra.Command{
 	},
 }
 
-func routineReloadUsersConfig(ctx *config.AppContext) {
+func routineHotReload(ctx *config.AppContext) {
 	logger := ctx.Logger
 	defer libapp.TryRecoverAndExecuteExitFunctionIfRecovered(logger)
 
 	hotReloadInterval := ctx.AppConfig.General.HotReloadInterval
-	if hotReloadInterval < time.Minute {
+	if hotReloadInterval < 30*time.Second {
 		hotReloadInterval = time.Minute
 	}
 	firstRun := true
@@ -104,44 +105,69 @@ func routineReloadUsersConfig(ctx *config.AppContext) {
 		} else {
 			time.Sleep(hotReloadInterval)
 		}
-		logger.Info("hot-reload users config")
+		logger.Debug("hot-reload config")
 
 		// Reload users config
-		usersConf, err := config.LoadUsersConfig(homeDir)
-		if err != nil {
-			logger.Error("failed to hot-reload users config, failed to load", "error", err.Error())
-			continue
-		}
-		userRecords := usersConf.ToUserRecords()
-		if err := userRecords.Validate(); err != nil {
-			logger.Error("failed to hot-reload users config, validation failed", "error", err.Error())
-			continue
-		}
-
-		// Update users config
-		if err := usereg.UpdateUsersConfigWL(userRecords); err != nil {
-			logger.Error("failed to hot-reload users config, failed to update registry", "error", err.Error())
-			continue
-		}
-
-		// Init telegram bot per user
-		for _, userRecord := range userRecords {
-			if userRecord.TelegramConfig == nil {
-				continue
-			}
-
-			// Init telegram bot
-			telegramBot, err := tbotreg.GetTelegramBotByTokenWL(userRecord.TelegramConfig.Token, logger)
+		usersConf := func() *config.UsersConfig {
+			usersConf, err := config.LoadUsersConfig(homeDir)
 			if err != nil {
-				logger.Error("failed to hot-reload users config, failed to init telegram bot", "identity", userRecord.Identity, "error", err.Error())
-				continue
+				logger.Error("failed to hot-reload users config, failed to load", "error", err.Error())
+				return nil
+			}
+			userRecords := usersConf.ToUserRecords()
+			if err := userRecords.Validate(); err != nil {
+				logger.Error("failed to hot-reload users config, validation failed", "error", err.Error())
+				return nil
 			}
 
-			if userRecord.Root {
-				telegramBot.PriorityWL()
+			// Update users config
+			if err := usereg.UpdateUsersConfigWL(userRecords); err != nil {
+				logger.Error("failed to hot-reload users config, failed to update registry", "error", err.Error())
+				return nil
 			}
 
-			telegramBot.AddChatIdWL(userRecord.TelegramConfig.UserId)
+			// Init telegram bot per user
+			for _, userRecord := range userRecords {
+				if userRecord.TelegramConfig == nil {
+					continue
+				}
+
+				// Init telegram bot
+				telegramBot, err := tbotreg.GetTelegramBotByTokenWL(userRecord.TelegramConfig.Token, logger)
+				if err != nil {
+					logger.Error("failed to hot-reload users config, failed to init telegram bot", "identity", userRecord.Identity, "error", err.Error())
+					continue
+				}
+
+				if userRecord.Root {
+					telegramBot.PriorityWL()
+				}
+
+				telegramBot.AddChatIdWL(userRecord.TelegramConfig.UserId)
+			}
+
+			return usersConf
+		}()
+
+		// Reload chains config
+		if usersConf != nil {
+			func(usersConf *config.UsersConfig) {
+				chainsConf, err := config.LoadChainsConfig(homeDir)
+				if err != nil {
+					logger.Error("failed to hot-reload chains config, failed to load", "error", err.Error())
+					return
+				}
+				if err := chainsConf.Validate(usersConf); err != nil {
+					logger.Error("failed to hot-reload chains config, validation failed", "error", err.Error())
+					return
+				}
+
+				// Update chains config
+				if err := chainreg.UpdateChainsConfigWL(chainsConf, usersConf); err != nil {
+					logger.Error("failed to hot-reload chains config, failed to update registry", "error", err.Error())
+					return
+				}
+			}(usersConf)
 		}
 	}
 }
@@ -150,12 +176,16 @@ func routineInformStartup(ctx *config.AppContext) {
 	logger := ctx.Logger
 	defer libapp.TryRecoverAndExecuteExitFunctionIfRecovered(logger)
 
+	time.Sleep(1 * time.Second)
 	for {
 		time.Sleep(1 * time.Second)
 
 		if len(tbotreg.GetAllTelegramBotsRL()) > 0 {
+			time.Sleep(2 * time.Second) // wait for all telegram bots to be initialized
 			break
 		}
+
+		logger.Info("waiting for telegram bots to be initialized")
 	}
 
 	safeSendTelegramMessageToAll(ctx, "startup", "validator health-check bot is started", false)

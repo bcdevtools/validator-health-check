@@ -19,14 +19,21 @@ var checkCmd = &cobra.Command{
 		usersConf, err := config.LoadUsersConfig(homeDir)
 		libutils.ExitIfErr(err, "unable to load users config")
 
+		chainsConf, err := config.LoadChainsConfig(homeDir)
+		libutils.ExitIfErr(err, "unable to load chains config")
+
 		// Output some options to console
 		appConf.PrintOptions()
 
 		// Perform validation
 		err = appConf.Validate()
 		libutils.ExitIfErr(err, "bad app config")
+
 		err = usersConf.ToUserRecords().Validate()
 		libutils.ExitIfErr(err, "bad users config")
+
+		err = chainsConf.Validate(usersConf)
+		libutils.ExitIfErr(err, "bad chains config")
 
 		fmt.Println("Validation completed successfully!")
 	},

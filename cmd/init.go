@@ -35,7 +35,7 @@ general:
 worker:
 logging:
   level: info # debug || info || error
-  format: json # text || json
+  format: json
 `, constants.APP_NAME))
 
 		writeYamlFile("User", usersFile, // trailing style: 2 spaces
@@ -48,6 +48,17 @@ users:
       id: -1
       token: "token"
 `, constants.APP_NAME))
+
+		writeYamlFile("Chain", path.Join(homeDir, fmt.Sprintf("%stest.%s", constants.CHAIN_FILE_NAME_PREFIX, constants.CONFIG_TYPE)), // trailing style: 2 spaces
+			`chain-name: test
+disable: true
+priority: false
+rpc: []
+validators:
+  valoper1:
+    watchers: []
+    health-check-rpc: ""
+`)
 
 		fmt.Println("Initialized successfully!")
 	},

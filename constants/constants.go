@@ -10,10 +10,11 @@ const (
 
 	// Do not change bellow
 
-	DEFAULT_HOME     = "." + BINARY_NAME
-	CONFIG_FILE_NAME = "config." + CONFIG_TYPE
-	USERS_FILE_NAME  = "users." + CONFIG_TYPE
-	CONFIG_TYPE      = "yaml"
+	DEFAULT_HOME           = "." + BINARY_NAME
+	CONFIG_FILE_NAME       = "config." + CONFIG_TYPE
+	USERS_FILE_NAME        = "users." + CONFIG_TYPE
+	CHAIN_FILE_NAME_PREFIX = "chain."
+	CONFIG_TYPE            = "yaml"
 )
 
 //goland:noinspection GoSnakeCaseUsage

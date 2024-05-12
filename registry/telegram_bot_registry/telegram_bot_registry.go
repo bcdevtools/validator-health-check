@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-var mutexUserConfig sync.RWMutex
+var mutex sync.RWMutex
 var globalTelegramBotByToken map[string]TelegramBot
 var shuttingDown bool
 
@@ -25,8 +25,8 @@ func GetTelegramBotByTokenWL(token string, logger logging.Logger) (TelegramBot, 
 		return bot, nil
 	}
 
-	mutexUserConfig.Lock()
-	defer mutexUserConfig.Unlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	// double check
 	bot, found, err = getTelegramBotByTokenRL(token, false)
@@ -50,8 +50,8 @@ func GetTelegramBotByTokenWL(token string, logger logging.Logger) (TelegramBot, 
 }
 
 func GetAllTelegramBotsRL() TelegramBots {
-	mutexUserConfig.RLock()
-	defer mutexUserConfig.RUnlock()
+	mutex.RLock()
+	defer mutex.RUnlock()
 
 	result := make([]TelegramBot, len(globalTelegramBotByToken))
 	idx := 0
@@ -63,16 +63,16 @@ func GetAllTelegramBotsRL() TelegramBots {
 }
 
 func FlagShuttingDownWL() {
-	mutexUserConfig.Lock()
-	defer mutexUserConfig.Unlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	shuttingDown = true
 }
 
 func getTelegramBotByTokenRL(token string, acquireRLock bool) (bot TelegramBot, found bool, err error) {
 	if acquireRLock {
-		mutexUserConfig.RLock()
-		defer mutexUserConfig.RUnlock()
+		mutex.RLock()
+		defer mutex.RUnlock()
 	}
 
 	if shuttingDown {
