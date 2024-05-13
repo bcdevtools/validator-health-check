@@ -105,6 +105,9 @@ func (r UserRecord) Validate() error {
 	if r.TelegramConfig.Token == "" {
 		return fmt.Errorf("telegram token must be set")
 	}
+	if r.TelegramConfig.IsEmptyOrIncompleteConfig() {
+		return fmt.Errorf("telegram config is incomplete")
+	}
 
 	return nil
 }
@@ -139,4 +142,8 @@ func (r UserRecords) Validate() error {
 	}
 
 	return nil
+}
+
+func (c *UserTelegramConfig) IsEmptyOrIncompleteConfig() bool {
+	return c == nil || c.Username == "" || c.UserId == 0 || c.Token == ""
 }

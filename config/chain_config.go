@@ -172,7 +172,14 @@ func (c ChainsConfig) Validate(usersConfig *UsersConfig) error {
 		}
 		for _, validator := range chain.Validators {
 			for _, watcher := range validator.Watchers {
-				if _, found := usersConfig.Users[watcher]; !found {
+				if userRecord, found := usersConfig.Users[watcher]; found {
+					if userRecord.TelegramConfig == nil ||
+						userRecord.TelegramConfig.UserId == 0 ||
+						userRecord.TelegramConfig.Username == "" ||
+						userRecord.TelegramConfig.Token == "" {
+						return fmt.Errorf("watcher identity %s for chain %s validator %s has incomplete telegram config", watcher, chain.ChainName, validator.ValidatorOperatorAddress)
+					}
+				} else {
 					return fmt.Errorf("watcher identity %s for chain %s validator %s does not exists", watcher, chain.ChainName, validator.ValidatorOperatorAddress)
 				}
 			}

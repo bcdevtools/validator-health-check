@@ -27,9 +27,6 @@ func RegisterPairValAddressWL(chainName string, valoper string, valcons string) 
 	globalValconsToValoper[chainName][valcons] = valoper
 }
 
-// TODO remove if not use
-//
-//goland:noinspection SpellCheckingInspection
 func GetValconsByValoperRL(chainName string, valoper string) (valcons string, found bool) {
 	mutex.RLock()
 	defer mutex.RUnlock()

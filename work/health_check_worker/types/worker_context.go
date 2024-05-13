@@ -7,8 +7,10 @@ import (
 type HcwContext struct {
 	WorkerID int
 	AppCtx   config.AppContext
-	RoCfg    WorkerReadonlyConfig
-	RwCache  *WorkerWritableCache
+
+	// TODO remove if not used
+	RoCfg   WorkerReadonlyConfig
+	RwCache *WorkerWritableCache
 }
 
 // WorkerReadonlyConfig contains readonly configuration options

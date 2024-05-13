@@ -10,6 +10,8 @@ import (
 	chainreg "github.com/bcdevtools/validator-health-check/registry/chain_registry"
 	tbotreg "github.com/bcdevtools/validator-health-check/registry/telegram_bot_registry"
 	usereg "github.com/bcdevtools/validator-health-check/registry/user_registry"
+	tpsvc "github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc"
+	"github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc/types"
 	"github.com/bcdevtools/validator-health-check/utils"
 	"github.com/bcdevtools/validator-health-check/work/health_check_worker"
 	workertypes "github.com/bcdevtools/validator-health-check/work/health_check_worker/types"
@@ -70,7 +72,12 @@ var startCmd = &cobra.Command{
 		logger.Info("launching go routine to hot-reload config")
 		go routineHotReload(ctx)
 
-		// Create workers
+		// Start telegram pusher service
+		telegramPusher := tpsvc.NewTelegramPusher(types.TpContext{
+			AppCtx: *ctx,
+		})
+		logger.Debug("starting telegram pusher service")
+		go telegramPusher.Start()
 
 		// Start health-check workers
 		for id := 1; id <= appCfg.WorkerConfig.HealthCheckCount; id++ {
@@ -82,7 +89,7 @@ var startCmd = &cobra.Command{
 			}
 
 			logger.Debug("starting health-check worker", "wid", workerWorkingCtx.WorkerID)
-			go health_check_worker.NewHcWorker(workerWorkingCtx).Start()
+			go health_check_worker.NewHcWorker(workerWorkingCtx, telegramPusher).Start()
 		}
 
 		// end
