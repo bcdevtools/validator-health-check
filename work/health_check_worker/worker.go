@@ -234,26 +234,39 @@ func (w Worker) Start() {
 					)
 				}
 
-				// TODO health-check slashing
 				if errFetchSigningInfo == nil { // skip check if error on fetch, error message informed before
 					valconsAddr, found := valaddreg.GetValconsByValoperRL(chainName, valoperAddr)
 					if found {
 						signingInfo, found := valconsToSigningInfo[valconsAddr]
 						if found {
 							if signingInfo.Tombstoned {
-								enqueueTelegramMessageByIdentity(
-									valoperAddr,
-									"Tombstoned! Contact to unsubscribe this validator",
-									true,
-									validator.WatchersIdentity...,
+								sendToWatchers := tpsvc.ShouldSendMessageWL(
+									tpsvc.PreventSpammingCaseTomeStoned,
+									validator.WatchersIdentity,
+									1*time.Hour,
 								)
+								if len(sendToWatchers) > 0 {
+									enqueueTelegramMessageByIdentity(
+										valoperAddr,
+										"Tombstoned! Contact to unsubscribe this validator",
+										true,
+										sendToWatchers...,
+									)
+								}
 							} else if now := time.Now().UTC(); signingInfo.JailedUntil.After(now) {
-								enqueueTelegramMessageByIdentity(
-									valoperAddr,
-									fmt.Sprintf("Jailed until %s, %f minutes left", signingInfo.JailedUntil, signingInfo.JailedUntil.Sub(now).Minutes()),
-									true,
-									validator.WatchersIdentity...,
+								sendToWatchers := tpsvc.ShouldSendMessageWL(
+									tpsvc.PreventSpammingCaseJailed,
+									validator.WatchersIdentity,
+									30*time.Minute,
 								)
+								if len(sendToWatchers) > 0 {
+									enqueueTelegramMessageByIdentity(
+										valoperAddr,
+										fmt.Sprintf("Jailed until %s, %f minutes left", signingInfo.JailedUntil, signingInfo.JailedUntil.Sub(now).Minutes()),
+										true,
+										sendToWatchers...,
+									)
+								}
 							} else {
 								if signingInfo.MissedBlocksCounter > 0 {
 									if slashingParams != nil {
@@ -291,13 +304,28 @@ func (w Worker) Start() {
 
 											uptime := 100.0 - utils.RatioOfInt64(signingInfo.MissedBlocksCounter, slashingParams.SignedBlocksWindow)
 											if uptime <= 90.0 {
-												enqueueTelegramMessageByIdentity(
-													valoperAddr,
-													fmt.Sprintf("Low uptime %f%%", uptime),
-													false,
-													validator.WatchersIdentity...,
+												var ignoreIfLastSentLessThan time.Duration
+												if uptime <= 65.0 {
+													ignoreIfLastSentLessThan = 15 * time.Minute
+												} else if uptime <= 75.0 {
+													ignoreIfLastSentLessThan = 30 * time.Minute
+												} else {
+													ignoreIfLastSentLessThan = 1 * time.Hour
+												}
+												sendToWatchers := tpsvc.ShouldSendMessageWL(
+													tpsvc.PreventSpammingCaseLowUptime,
+													validator.WatchersIdentity,
+													ignoreIfLastSentLessThan,
 												)
-												// TODO rate limit this message
+												fatal := uptime <= 70.0
+												if len(sendToWatchers) > 0 {
+													enqueueTelegramMessageByIdentity(
+														valoperAddr,
+														fmt.Sprintf("Low uptime %f%%", uptime),
+														fatal,
+														sendToWatchers...,
+													)
+												}
 											}
 
 											logger.Debug(
