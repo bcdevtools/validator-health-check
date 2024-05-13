@@ -102,12 +102,15 @@ func (w Worker) Start() {
 					if validator != "" {
 						messagePrefix += fmt.Sprintf("[%s]", validator)
 					}
+					message = fmt.Sprintf("%s %s", messagePrefix, message)
 
 					w.telegramPusherSvc.EnqueueMessageWL(tptypes.QueueMessage{
 						ReceiverID: userRecord.TelegramConfig.UserId,
 						Priority:   userRecord.Root,
-						Message:    fmt.Sprintf("%s %s", messagePrefix, message),
+						Message:    message,
 					})
+
+					logger.Debug("enqueued telegram message by identity", "message", message, "identity", identity)
 				}
 			}
 
@@ -208,7 +211,7 @@ func (w Worker) Start() {
 				case stakingtypes.Unbonding:
 					enqueueTelegramMessageByIdentity(
 						valoperAddr,
-						"validator is unbonding! Fall-out of active set? Jailed?",
+						"FATAL: validator is unbonding! Fall-out of active set? Jailed?",
 						validator.WatchersIdentity...,
 					)
 				default:
@@ -237,50 +240,61 @@ func (w Worker) Start() {
 									fmt.Sprintf("FATAL: Jailed until %s, %f minutes left", signingInfo.JailedUntil, signingInfo.JailedUntil.Sub(now).Minutes()),
 									validator.WatchersIdentity...,
 								)
-							} else if signingInfo.MissedBlocksCounter > 0 {
-								if slashingParams != nil {
-									if slashingParams.MinSignedPerWindow.IsPositive() && slashingParams.SignedBlocksWindow > 0 {
-										var downtimeSlashingWhenMissedExcess int64
-										if slashingParams.MinSignedPerWindow.Equal(sdk.OneDec()) {
-											downtimeSlashingWhenMissedExcess = 0
-										} else {
-											downtimeSlashingWhenMissedExcess =
-												slashingParams.SignedBlocksWindow - slashingParams.MinSignedPerWindow.Mul(sdk.NewDec(slashingParams.SignedBlocksWindow)).Ceil().RoundInt64()
-										}
+							} else {
+								if signingInfo.MissedBlocksCounter > 0 {
+									if slashingParams != nil {
+										if slashingParams.MinSignedPerWindow.IsPositive() && slashingParams.SignedBlocksWindow > 0 {
+											var downtimeSlashingWhenMissedExcess int64
+											if slashingParams.MinSignedPerWindow.Equal(sdk.OneDec()) {
+												downtimeSlashingWhenMissedExcess = 0
+											} else {
+												downtimeSlashingWhenMissedExcess =
+													slashingParams.SignedBlocksWindow - slashingParams.MinSignedPerWindow.Mul(sdk.NewDec(slashingParams.SignedBlocksWindow)).Ceil().RoundInt64()
+											}
 
-										if signingInfo.MissedBlocksCounter > downtimeSlashingWhenMissedExcess/2 {
-											enqueueTelegramMessageByIdentity(
-												valoperAddr,
-												"FATAL: Missed more than half of the blocks in the window, beware of being Jailed",
-												validator.WatchersIdentity...,
+											missedBlocksOverDowntimeSlashingRatio := utils.RatioOfInt64(signingInfo.MissedBlocksCounter, downtimeSlashingWhenMissedExcess)
+											if signingInfo.MissedBlocksCounter > 50.0 {
+												enqueueTelegramMessageByIdentity(
+													valoperAddr,
+													fmt.Sprintf(
+														"FATAL: Missed more than half of the allowed blocks in the window, beware of being Jailed. Missed %d/%d, ratio %f%%, window %d blocks",
+														signingInfo.MissedBlocksCounter,
+														downtimeSlashingWhenMissedExcess,
+														missedBlocksOverDowntimeSlashingRatio,
+														slashingParams.SignedBlocksWindow,
+													),
+													validator.WatchersIdentity...,
+												)
+												// TODO rate limit this message
+											}
+
+											uptime := 100.0 - utils.RatioOfInt64(signingInfo.MissedBlocksCounter, slashingParams.SignedBlocksWindow)
+											if uptime <= 90.0 {
+												enqueueTelegramMessageByIdentity(
+													valoperAddr,
+													fmt.Sprintf("Low uptime %f%%", uptime),
+													validator.WatchersIdentity...,
+												)
+												// TODO rate limit this message
+											}
+
+											logger.Debug(
+												"validator health-check information",
+												"uptime", fmt.Sprintf("%d%%", uptime),
+												"missed-block", fmt.Sprintf("%d/%d", signingInfo.MissedBlocksCounter, downtimeSlashingWhenMissedExcess),
+												"valoper", valoperAddr,
+												"chain", chainName,
 											)
-											// TODO rate limit this message
 										}
-
-										uptime := 100.0 - (signingInfo.MissedBlocksCounter * 100.0 / (slashingParams.SignedBlocksWindow * 1.0))
-										if uptime <= 90.0 {
-											enqueueTelegramMessageByIdentity(
-												valoperAddr,
-												fmt.Sprintf("Low uptime %d%%", uptime),
-												validator.WatchersIdentity...,
-											)
-											// TODO rate limit this message
-										}
-
-										logger.Debug(
-											"validator health-check information",
-											"uptime", fmt.Sprintf("%d%%", uptime),
-											"missed-block", fmt.Sprintf("%d/%d", signingInfo.MissedBlocksCounter, downtimeSlashingWhenMissedExcess),
-											"valoper", valoperAddr,
-											"chain", chainName,
+									} else {
+										enqueueTelegramMessageByIdentity(
+											valoperAddr,
+											"skipped uptime health-check because missing slashing params",
+											validator.WatchersIdentity...,
 										)
 									}
 								} else {
-									enqueueTelegramMessageByIdentity(
-										valoperAddr,
-										"skipped uptime health-check because missing slashing params",
-										validator.WatchersIdentity...,
-									)
+									logger.Debug("no missed block", "chain", chainName, "valoper", valoperAddr, "signing-info", signingInfo)
 								}
 							}
 						} else {
