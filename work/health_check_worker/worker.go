@@ -300,6 +300,26 @@ func (w Worker) Start() {
 														sendToWatchers...,
 													)
 												}
+											} else if missedBlocksOverDowntimeSlashingRatio > 10.0 {
+												sendToWatchers := tpsvc.ShouldSendMessageWL(
+													tpsvc.PreventSpammingCaseMissedBlocksOverDangerousThreshold,
+													validator.WatchersIdentity,
+													2*time.Hour,
+												)
+												if len(sendToWatchers) > 0 {
+													enqueueTelegramMessageByIdentity(
+														valoperAddr,
+														fmt.Sprintf(
+															"High missed-block-ratio. Missed %d/%d, ratio %f%%, window %d blocks",
+															signingInfo.MissedBlocksCounter,
+															downtimeSlashingWhenMissedExcess,
+															missedBlocksOverDowntimeSlashingRatio,
+															slashingParams.SignedBlocksWindow,
+														),
+														true,
+														sendToWatchers...,
+													)
+												}
 											}
 
 											uptime := 100.0 - utils.RatioOfInt64(signingInfo.MissedBlocksCounter, slashingParams.SignedBlocksWindow)
@@ -371,14 +391,14 @@ func (w Worker) Start() {
 					func(validator chainreg.ValidatorOfRegisteredChainConfig, valoperAddr string) {
 						var errorToReport error
 						var fatal bool
-						suggestPreventSpammingTime := 15 * time.Minute
+						ignoreIfLastSentLessThan := 15 * time.Minute
 
 						defer func() {
 							if errorToReport != nil {
 								sendToWatchers := tpsvc.ShouldSendMessageWL(
 									tpsvc.PreventSpammingCaseDirectHealthCheckOptionalRPC,
 									validator.WatchersIdentity,
-									suggestPreventSpammingTime,
+									ignoreIfLastSentLessThan,
 								)
 								if len(sendToWatchers) > 0 {
 									enqueueTelegramMessageByIdentity(
@@ -406,7 +426,7 @@ func (w Worker) Start() {
 									fatal = true
 								} else if diff := time.Since(resultStatus.SyncInfo.LatestBlockTime.UTC()); diff > 30*time.Second {
 									errorToReport = fmt.Errorf("validator is out dated %d, time %v, server time %v", int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC())
-									suggestPreventSpammingTime = 10 * time.Minute
+									ignoreIfLastSentLessThan = 10 * time.Minute
 									fatal = true
 								}
 							}
