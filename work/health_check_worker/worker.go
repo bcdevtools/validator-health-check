@@ -79,22 +79,28 @@ func (w Worker) Start() {
 				}
 			}
 
-			enqueueTelegramMessageByIdentity := func(message string, identities ...string) {
+			chainName := registeredChainConfig.GetChainName()
+			logger.Debug("health-checking chain", "chain", chainName, "wid", w.ctx.WorkerID)
+
+			enqueueTelegramMessageByIdentity := func(validator, message string, identities ...string) {
 				for _, identity := range identities {
 					userRecord, found := watchersIdentityToUserRecord[identity]
 					if !found {
 						panic(fmt.Sprintf("user not found, weird! identity: %s", identity))
 					}
+
+					messagePrefix := fmt.Sprintf("[%s]", chainName)
+					if validator != "" {
+						messagePrefix += fmt.Sprintf("[%s]", validator)
+					}
+
 					w.telegramPusherSvc.EnqueueMessageWL(tptypes.QueueMessage{
 						ReceiverID: userRecord.TelegramConfig.UserId,
 						Priority:   userRecord.Root,
-						Message:    message,
+						Message:    fmt.Sprintf("%s %s", messagePrefix, message),
 					})
 				}
 			}
-
-			chainName := registeredChainConfig.GetChainName()
-			logger.Debug("health-checking chain", "chain", chainName, "wid", w.ctx.WorkerID)
 
 			var healthCheckError error
 			defer func() {
@@ -105,7 +111,8 @@ func (w Worker) Start() {
 
 				logger.Error("failed to health-check chain", "chain", chainName, "error", healthCheckError.Error())
 				enqueueTelegramMessageByIdentity(
-					fmt.Sprintf("failed to health-check chain %s, error: %s", chainName, healthCheckError.Error()),
+					"",
+					fmt.Sprintf("failed to health-check, error: %s", healthCheckError.Error()),
 					allWatchersIdentity...,
 				)
 			}()
@@ -120,7 +127,8 @@ func (w Worker) Start() {
 			logger.Debug("most healthy RPC", "chain", chainName, "endpoint", mostHealthyEndpoint, "latest_block_time", latestBlockTime)
 			if time.Since(latestBlockTime) > constants.INFORM_TELEGRAM_IF_BLOCK_OLDER_THAN {
 				enqueueTelegramMessageByIdentity(
-					fmt.Sprintf("latest block time of the most health RPC of %s is too old: %s, diff %s", chainName, latestBlockTime, time.Since(latestBlockTime)),
+					"",
+					fmt.Sprintf("latest block time of the most health RPC is too old: %s, diff %s", latestBlockTime, time.Since(latestBlockTime)),
 					allWatchersIdentity...,
 				)
 			}
@@ -145,7 +153,8 @@ func (w Worker) Start() {
 			signingInfos, errFetchSigningInfo := getAllSigningInfos(rpcClient)
 			if errFetchSigningInfo != nil {
 				enqueueTelegramMessageByIdentity(
-					fmt.Sprintf("failed to get all validator signing infos on %s, for uptime-check, error: %s", chainName, errFetchSigningInfo.Error()),
+					"",
+					fmt.Sprintf("failed to get all validator signing infos, for uptime-check, error: %s", errFetchSigningInfo.Error()),
 					allWatchersIdentity...,
 				)
 			}
@@ -158,7 +167,8 @@ func (w Worker) Start() {
 			slashingParams, errFetchSlashingParams := getSlashingParams(rpcClient)
 			if errFetchSlashingParams != nil {
 				enqueueTelegramMessageByIdentity(
-					fmt.Sprintf("failed to get all slashing params on %s, for uptime-check, error: %s", chainName, errFetchSlashingParams.Error()),
+					"",
+					fmt.Sprintf("failed to get all slashing params, for uptime-check, error: %s", errFetchSlashingParams.Error()),
 					allWatchersIdentity...,
 				)
 			}
@@ -169,7 +179,11 @@ func (w Worker) Start() {
 				valoperAddr := validator.ValidatorOperatorAddress
 				stakingValidator, found := stakingValidatorByValoper[valoperAddr]
 				if !found {
-					enqueueTelegramMessageByIdentity(fmt.Sprintf("validator %s not found, chain %s", valoperAddr, chainName), validator.WatchersIdentity...)
+					enqueueTelegramMessageByIdentity(
+						valoperAddr,
+						"validator not found",
+						validator.WatchersIdentity...,
+					)
 					continue
 				}
 
@@ -177,11 +191,23 @@ func (w Worker) Start() {
 				case stakingtypes.Bonded:
 					// all good
 				case stakingtypes.Unbonded:
-					enqueueTelegramMessageByIdentity(fmt.Sprintf("validator %s on %s is unbonded! Tombstoned? Contact to unsubscribe this validator", valoperAddr, chainName), validator.WatchersIdentity...)
+					enqueueTelegramMessageByIdentity(
+						valoperAddr,
+						"FATAL: validator is un-bonded! Tombstoned? Contact to unsubscribe this validator",
+						validator.WatchersIdentity...,
+					)
 				case stakingtypes.Unbonding:
-					enqueueTelegramMessageByIdentity(fmt.Sprintf("validator %s on %s is unbonding! Out of active set? Jailed?", valoperAddr, chainName), validator.WatchersIdentity...)
+					enqueueTelegramMessageByIdentity(
+						valoperAddr,
+						"validator is unbonding! Fall-out of active set? Jailed?",
+						validator.WatchersIdentity...,
+					)
 				default:
-					enqueueTelegramMessageByIdentity(fmt.Sprintf("validator %s on %s is in unknown status %s", valoperAddr, chainName, stakingValidator.Status), validator.WatchersIdentity...)
+					enqueueTelegramMessageByIdentity(
+						valoperAddr,
+						fmt.Sprintf("unknown bond status %s", stakingValidator.Status),
+						validator.WatchersIdentity...,
+					)
 				}
 
 				// TODO health-check slashing
@@ -192,12 +218,14 @@ func (w Worker) Start() {
 						if found {
 							if signingInfo.Tombstoned {
 								enqueueTelegramMessageByIdentity(
-									fmt.Sprintf("FATAL: validator %s on %s is tombstoned! Contact to unsubscribe this validator", valoperAddr, chainName),
+									valoperAddr,
+									"FATAL: Tombstoned! Contact to unsubscribe this validator",
 									validator.WatchersIdentity...,
 								)
 							} else if now := time.Now().UTC(); signingInfo.JailedUntil.After(now) {
 								enqueueTelegramMessageByIdentity(
-									fmt.Sprintf("FATAL: validator %s on %s is jailed until %s, %f minutes left", valoperAddr, chainName, signingInfo.JailedUntil, signingInfo.JailedUntil.Sub(now).Minutes()),
+									valoperAddr,
+									fmt.Sprintf("FATAL: Jailed until %s, %f minutes left", signingInfo.JailedUntil, signingInfo.JailedUntil.Sub(now).Minutes()),
 									validator.WatchersIdentity...,
 								)
 							} else if signingInfo.MissedBlocksCounter > 0 {
@@ -206,14 +234,16 @@ func (w Worker) Start() {
 										uptime := sdk.NewDec(signingInfo.MissedBlocksCounter).Mul(sdk.NewDec(100)).Quo(slashingParams.MinSignedPerWindow).RoundInt().Int64()
 										if uptime <= 90 {
 											enqueueTelegramMessageByIdentity(
-												fmt.Sprintf("validator %s on %s low uptime %d%", valoperAddr, chainName, uptime),
+												valoperAddr,
+												fmt.Sprintf("Low uptime %d%", uptime),
 												validator.WatchersIdentity...,
 											)
 										}
 
 										if signingInfo.MissedBlocksCounter > slashingParams.MinSignedPerWindow.RoundInt64()/2 {
 											enqueueTelegramMessageByIdentity(
-												fmt.Sprintf("FATAL: validator %s on %s missed more than half of the blocks in the window, beware of being Jailed", valoperAddr, chainName),
+												valoperAddr,
+												"FATAL: Missed more than half of the blocks in the window, beware of being Jailed",
 												validator.WatchersIdentity...,
 											)
 										}
@@ -228,20 +258,23 @@ func (w Worker) Start() {
 									}
 								} else {
 									enqueueTelegramMessageByIdentity(
-										fmt.Sprintf("skipped uptime health-check for %s on %s because missing slashing params", valoperAddr, chainName),
+										valoperAddr,
+										"skipped uptime health-check because missing slashing params",
 										validator.WatchersIdentity...,
 									)
 								}
 							}
 						} else {
 							enqueueTelegramMessageByIdentity(
-								fmt.Sprintf("validator signing info of %s on %s not found from result", valoperAddr, chainName),
+								valoperAddr,
+								"validator signing info could not be found",
 								validator.WatchersIdentity...,
 							)
 						}
 					} else {
 						enqueueTelegramMessageByIdentity(
-							fmt.Sprintf("validator consensus address of %s on %s not found in mapping", valoperAddr, chainName),
+							valoperAddr,
+							"validator consensus address not found in mapping",
 							validator.WatchersIdentity...,
 						)
 					}
