@@ -9,6 +9,7 @@ import (
 	tptypes "github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc/types"
 	"github.com/bcdevtools/validator-health-check/utils"
 	"github.com/pkg/errors"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -59,6 +60,9 @@ func (tp *telegramPusher) EnqueueMessageWL(message tptypes.QueueMessage) {
 		}
 	}
 
+	if message.EnqueueTimeUTC == (time.Time{}) {
+		message.EnqueueTimeUTC = time.Now().UTC()
+	}
 	existingQueue.EnqueueMessageWL(message)
 }
 
@@ -107,9 +111,23 @@ func (tp *telegramPusher) Start() {
 		receiverId := firstNonEmptyQueue.GetReceiverId()
 		messages := firstNonEmptyQueue.DequeueMessagesWL(constants.BATCH_SIZE_TELEGRAM_PUSH_PER_USER)
 		if len(messages) < 1 {
-			logger.Error("unexpected empty messages", "receiver-id", receiverId)
+			logger.Error("unexpected no message", "receiver-id", receiverId)
 			continue
 		}
+		sort.Slice(messages, func(i, j int) bool {
+			left := messages[i]
+			right := messages[j]
+
+			if left.Fatal != right.Fatal {
+				if left.Fatal {
+					return true
+				} else {
+					return false
+				}
+			}
+
+			return left.EnqueueTimeUTC.Before(right.EnqueueTimeUTC)
+		})
 		messagesContent := make([]string, len(messages))
 		for i, message := range messages {
 			messagesContent[i] = message.Message
