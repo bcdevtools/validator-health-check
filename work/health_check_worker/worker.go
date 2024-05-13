@@ -2,6 +2,7 @@ package health_check_worker
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	libapp "github.com/EscanBE/go-lib/app"
 	"github.com/EscanBE/go-lib/logging"
@@ -23,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	coretypes "github.com/tendermint/tendermint/rpc/core/types"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -82,7 +84,14 @@ func (w Worker) Start() {
 			chainName := registeredChainConfig.GetChainName()
 			logger.Debug("health-checking chain", "chain", chainName, "wid", w.ctx.WorkerID)
 
+			var countEnqueuedTelegramMessages int
+
+			defer func() {
+				logger.Info("enqueued telegram messages", "count", countEnqueuedTelegramMessages, "chain", chainName)
+			}()
+
 			enqueueTelegramMessageByIdentity := func(validator, message string, identities ...string) {
+				countEnqueuedTelegramMessages++
 				for _, identity := range identities {
 					userRecord, found := watchersIdentityToUserRecord[identity]
 					if !found {
@@ -230,28 +239,38 @@ func (w Worker) Start() {
 								)
 							} else if signingInfo.MissedBlocksCounter > 0 {
 								if slashingParams != nil {
-									if slashingParams.MinSignedPerWindow.IsPositive() {
-										uptime := sdk.NewDec(signingInfo.MissedBlocksCounter).Mul(sdk.NewDec(100)).Quo(slashingParams.MinSignedPerWindow).RoundInt().Int64()
-										if uptime <= 90 {
-											enqueueTelegramMessageByIdentity(
-												valoperAddr,
-												fmt.Sprintf("Low uptime %d%", uptime),
-												validator.WatchersIdentity...,
-											)
+									if slashingParams.MinSignedPerWindow.IsPositive() && slashingParams.SignedBlocksWindow > 0 {
+										var downtimeSlashingWhenMissedExcess int64
+										if slashingParams.MinSignedPerWindow.Equal(sdk.OneDec()) {
+											downtimeSlashingWhenMissedExcess = 0
+										} else {
+											downtimeSlashingWhenMissedExcess =
+												slashingParams.SignedBlocksWindow - slashingParams.MinSignedPerWindow.Mul(sdk.NewDec(slashingParams.SignedBlocksWindow)).Ceil().RoundInt64()
 										}
 
-										if signingInfo.MissedBlocksCounter > slashingParams.MinSignedPerWindow.RoundInt64()/2 {
+										if signingInfo.MissedBlocksCounter > downtimeSlashingWhenMissedExcess/2 {
 											enqueueTelegramMessageByIdentity(
 												valoperAddr,
 												"FATAL: Missed more than half of the blocks in the window, beware of being Jailed",
 												validator.WatchersIdentity...,
 											)
+											// TODO rate limit this message
+										}
+
+										uptime := 100.0 - (signingInfo.MissedBlocksCounter * 100.0 / (slashingParams.SignedBlocksWindow * 1.0))
+										if uptime <= 90.0 {
+											enqueueTelegramMessageByIdentity(
+												valoperAddr,
+												fmt.Sprintf("Low uptime %d%%", uptime),
+												validator.WatchersIdentity...,
+											)
+											// TODO rate limit this message
 										}
 
 										logger.Debug(
 											"validator health-check information",
 											"uptime", fmt.Sprintf("%d%%", uptime),
-											"missed-block", fmt.Sprintf("%d/%d", signingInfo.MissedBlocksCounter, slashingParams.MinSignedPerWindow.RoundInt64()),
+											"missed-block", fmt.Sprintf("%d/%d", signingInfo.MissedBlocksCounter, downtimeSlashingWhenMissedExcess),
 											"valoper", valoperAddr,
 											"chain", chainName,
 										)
@@ -267,9 +286,10 @@ func (w Worker) Start() {
 						} else {
 							enqueueTelegramMessageByIdentity(
 								valoperAddr,
-								"validator signing info could not be found",
+								fmt.Sprintf("validator signing info could not be found, valcons: %s", valconsAddr),
 								validator.WatchersIdentity...,
 							)
+							logger.Debug("validator signing info could not be found", "chain", chainName, "valcons", valconsAddr, "valoper", valoperAddr, "signing-info-size", len(signingInfos))
 						}
 					} else {
 						enqueueTelegramMessageByIdentity(
@@ -312,7 +332,18 @@ func (w Worker) reloadMappingValAddressIfNeeded(registeredChainConfig chainreg.R
 			continue
 		}
 
-		valaddreg.RegisterPairValAddressWL(chainName, validator.OperatorAddress, consAddr.String())
+		valconsHrp, success := utils.GetValconsHrpFromValoperHrp(validator.OperatorAddress)
+		if !success {
+			panic(fmt.Sprintf("failed to get valcons hrp from valoper hrp, weird! valoper: %s", validator.OperatorAddress))
+		}
+
+		valconsAddrStr, err := sdk.Bech32ifyAddressBytes(valconsHrp, consAddr.Bytes())
+		if err != nil {
+			logger.Error("failed to bech32ify consensus address", "hrp", valconsHrp, "chain", chainName, "valoper", validator.OperatorAddress, "consensus_address", strings.ToUpper(hex.EncodeToString(consAddr)))
+			continue
+		}
+
+		valaddreg.RegisterPairValAddressWL(chainName, validator.OperatorAddress, valconsAddrStr)
 	}
 }
 
