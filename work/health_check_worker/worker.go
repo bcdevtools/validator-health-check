@@ -316,7 +316,7 @@ func (w Worker) Start() {
 															missedBlocksOverDowntimeSlashingRatio,
 															slashingParams.SignedBlocksWindow,
 														),
-														true,
+														false,
 														sendToWatchers...,
 													)
 												}
