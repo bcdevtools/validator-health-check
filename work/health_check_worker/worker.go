@@ -367,7 +367,52 @@ func (w Worker) Start() {
 					}
 				}
 
-				// TODO health-check the optional RPC
+				if validator.OptionalHealthCheckRPC != "" {
+					func(validator chainreg.ValidatorOfRegisteredChainConfig, valoperAddr string) {
+						var errorToReport error
+						var fatal bool
+						suggestPreventSpammingTime := 15 * time.Minute
+
+						defer func() {
+							if errorToReport != nil {
+								sendToWatchers := tpsvc.ShouldSendMessageWL(
+									tpsvc.PreventSpammingCaseDirectHealthCheckOptionalRPC,
+									validator.WatchersIdentity,
+									suggestPreventSpammingTime,
+								)
+								if len(sendToWatchers) > 0 {
+									enqueueTelegramMessageByIdentity(
+										valoperAddr,
+										errorToReport.Error(),
+										fatal,
+										sendToWatchers...,
+									)
+								}
+							}
+						}()
+
+						rpcClient, err := rpcreg.GetRpcClientByEndpointWL(validator.OptionalHealthCheckRPC, logger)
+						if err != nil {
+							errorToReport = errors.Wrapf(err, "failed to get RPC client to direct health-check validator %s: %s", valoperAddr, validator.OptionalHealthCheckRPC)
+						} else {
+							resultStatus, err := utils.Retry(func() (*coretypes.ResultStatus, error) {
+								return rpcClient.GetWebsocketClient().Status(context.Background())
+							})
+							if err != nil {
+								errorToReport = errors.Wrapf(err, "failed to get status from direct health-check validator %s: %s", valoperAddr, validator.OptionalHealthCheckRPC)
+							} else {
+								if resultStatus.SyncInfo.CatchingUp {
+									errorToReport = fmt.Errorf("validator %s is catching up, block %d, time %v", valoperAddr, resultStatus.SyncInfo.LatestBlockHeight, resultStatus.SyncInfo.LatestBlockTime)
+									fatal = true
+								} else if diff := time.Since(resultStatus.SyncInfo.LatestBlockTime.UTC()); diff > 30*time.Second {
+									errorToReport = fmt.Errorf("validator is out dated %d, time %v, server time %v", int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC())
+									suggestPreventSpammingTime = 10 * time.Minute
+									fatal = true
+								}
+							}
+						}
+					}(validator, valoperAddr)
+				}
 			}
 		}(registeredChainConfig)
 	}
