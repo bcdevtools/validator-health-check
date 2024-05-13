@@ -253,7 +253,7 @@ func (w Worker) Start() {
 											}
 
 											missedBlocksOverDowntimeSlashingRatio := utils.RatioOfInt64(signingInfo.MissedBlocksCounter, downtimeSlashingWhenMissedExcess)
-											if signingInfo.MissedBlocksCounter > 50.0 {
+											if missedBlocksOverDowntimeSlashingRatio > 50.0 {
 												enqueueTelegramMessageByIdentity(
 													valoperAddr,
 													fmt.Sprintf(
@@ -280,7 +280,7 @@ func (w Worker) Start() {
 
 											logger.Debug(
 												"validator health-check information",
-												"uptime", fmt.Sprintf("%d%%", uptime),
+												"uptime", fmt.Sprintf("%f%%", uptime),
 												"missed-block", fmt.Sprintf("%d/%d", signingInfo.MissedBlocksCounter, downtimeSlashingWhenMissedExcess),
 												"valoper", valoperAddr,
 												"chain", chainName,
