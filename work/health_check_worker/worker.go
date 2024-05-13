@@ -268,19 +268,25 @@ func (w Worker) Start() {
 
 											missedBlocksOverDowntimeSlashingRatio := utils.RatioOfInt64(signingInfo.MissedBlocksCounter, downtimeSlashingWhenMissedExcess)
 											if missedBlocksOverDowntimeSlashingRatio > 50.0 {
-												enqueueTelegramMessageByIdentity(
-													valoperAddr,
-													fmt.Sprintf(
-														"Missed more than half of the allowed blocks in the window, beware of being Jailed. Missed %d/%d, ratio %f%%, window %d blocks",
-														signingInfo.MissedBlocksCounter,
-														downtimeSlashingWhenMissedExcess,
-														missedBlocksOverDowntimeSlashingRatio,
-														slashingParams.SignedBlocksWindow,
-													),
-													true,
-													validator.WatchersIdentity...,
+												sendToWatchers := tpsvc.ShouldSendMessageWL(
+													tpsvc.PreventSpammingCaseMissedBlocksOverDangerousThreshold,
+													validator.WatchersIdentity,
+													15*time.Minute,
 												)
-												// TODO rate limit this message
+												if len(sendToWatchers) > 0 {
+													enqueueTelegramMessageByIdentity(
+														valoperAddr,
+														fmt.Sprintf(
+															"Missed more than half of the allowed blocks in the window, beware of being Jailed. Missed %d/%d, ratio %f%%, window %d blocks",
+															signingInfo.MissedBlocksCounter,
+															downtimeSlashingWhenMissedExcess,
+															missedBlocksOverDowntimeSlashingRatio,
+															slashingParams.SignedBlocksWindow,
+														),
+														true,
+														sendToWatchers...,
+													)
+												}
 											}
 
 											uptime := 100.0 - utils.RatioOfInt64(signingInfo.MissedBlocksCounter, slashingParams.SignedBlocksWindow)
