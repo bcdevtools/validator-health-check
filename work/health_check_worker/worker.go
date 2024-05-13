@@ -46,7 +46,7 @@ func (w Worker) Start() {
 
 		registeredChainConfig := chainreg.GetFirstChainConfigForHealthCheckRL(healthCheckInterval)
 		if registeredChainConfig == nil {
-			logger.Debug("no chain to health-check", "wid", w.Ctx.WorkerID)
+			//logger.Debug("no chain to health-check", "wid", w.Ctx.WorkerID)
 			continue
 		}
 
@@ -79,6 +79,7 @@ func (w Worker) Start() {
 				return
 			}
 
+			logger.Debug("health-check successfully")
 		}(registeredChainConfig)
 	}
 }
@@ -123,9 +124,8 @@ func (w Worker) reloadMappingValAddressIfNeeded(registeredChainConfig chainreg.R
 		}
 
 		var resultABCIQuery *coretypes.ResultABCIQuery
-		var queryValidatorsResponse *stakingtypes.QueryValidatorsResponse
 
-		queryValidatorsResponse, err = utils.Retry[*stakingtypes.QueryValidatorsResponse](func() (*stakingtypes.QueryValidatorsResponse, error) {
+		queryValidatorsResponse, err := utils.Retry[*stakingtypes.QueryValidatorsResponse](func() (*stakingtypes.QueryValidatorsResponse, error) {
 			resultABCIQuery, err = rpcClient.GetWebsocketClient().ABCIQuery(context.Background(), "/cosmos.staking.v1beta1.Query/Validators", bz)
 			if err != nil {
 				return nil, err
@@ -135,6 +135,7 @@ func (w Worker) reloadMappingValAddressIfNeeded(registeredChainConfig chainreg.R
 				return nil, fmt.Errorf("empty response value, weird")
 			}
 
+			queryValidatorsResponse := &stakingtypes.QueryValidatorsResponse{}
 			err = queryValidatorsResponse.Unmarshal(resultABCIQuery.Response.Value)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to unmarshal response, weird!")
@@ -167,6 +168,9 @@ func (w Worker) reloadMappingValAddressIfNeeded(registeredChainConfig chainreg.R
 }
 
 func getMostHealthyRpc(rpc []string, chainId string, logger logging.Logger) (rpcreg.RpcClient, string, error) {
+	if len(rpc) == 0 {
+		panic("no rpc to health-check")
+	}
 	type scoredRPC struct {
 		latestBlock int64
 		endpoint    string

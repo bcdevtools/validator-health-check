@@ -14,12 +14,12 @@ import (
 )
 
 type ChainConfig struct {
-	ChainName  string                          `mapstructure:"chain-name"`
-	ChainId    string                          `mapstructure:"chain-id"`
-	Disable    bool                            `mapstructure:"disable,omitempty"`
-	Priority   bool                            `mapstructure:"priority,omitempty"`
-	RPCs       []string                        `mapstructure:"rpc"`
-	Validators map[string]ChainValidatorConfig `mapstructure:"validators"`
+	ChainName  string                           `mapstructure:"chain-name"`
+	ChainId    string                           `mapstructure:"chain-id"`
+	Disable    bool                             `mapstructure:"disable,omitempty"`
+	Priority   bool                             `mapstructure:"priority,omitempty"`
+	RPCs       []string                         `mapstructure:"rpc"`
+	Validators map[string]*ChainValidatorConfig `mapstructure:"validators"`
 }
 
 type ChainsConfig []ChainConfig
@@ -76,6 +76,10 @@ func LoadChainsConfig(homeDir string) (ChainsConfig, error) {
 		err = viper.Unmarshal(conf)
 		if err != nil {
 			return errors.Wrap(err, "unable to deserialize chain conf file")
+		}
+
+		for valoper, chainValidatorConf := range conf.Validators {
+			chainValidatorConf.ValidatorOperatorAddress = valoper
 		}
 
 		chainsConfig = append(chainsConfig, *conf)

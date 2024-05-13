@@ -34,6 +34,7 @@ general:
   hot-reload: 5m
   health-check: 10m
 worker:
+  health-check-count: 5
 logging:
   level: info # debug || info || error
   format: json

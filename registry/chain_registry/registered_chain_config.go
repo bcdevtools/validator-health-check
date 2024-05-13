@@ -54,7 +54,7 @@ func newRegisteredChainConfig(chainConfig config.ChainConfig) RegisteredChainCon
 				normalizedRPCs[i] = normalizeRPC(r)
 			}
 			return normalizedRPCs
-		}(),
+		}(chainConfig.RPCs...),
 		validators: func() []ValidatorOfRegisteredChainConfig {
 			var validators []ValidatorOfRegisteredChainConfig
 			for _, chainValidatorConfig := range chainConfig.Validators {
