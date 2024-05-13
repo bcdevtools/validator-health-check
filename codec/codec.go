@@ -1,5 +1,6 @@
 package codec
 
+//goland:noinspection SpellCheckingInspection
 import (
 	sdkcodec "github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"

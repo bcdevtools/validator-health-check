@@ -84,8 +84,6 @@ var startCmd = &cobra.Command{
 			workerWorkingCtx := &workertypes.HcwContext{
 				WorkerID: id,
 				AppCtx:   *ctx,
-				RoCfg:    workertypes.WorkerReadonlyConfig{},
-				RwCache:  &workertypes.WorkerWritableCache{},
 			}
 
 			logger.Debug("starting health-check worker", "wid", workerWorkingCtx.WorkerID)

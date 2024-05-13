@@ -55,12 +55,4 @@ func TestUpdateUsersConfigWL(t *testing.T) {
 	require.Equal(t, "2u", userRecord.TelegramConfig.Username)
 	require.Equal(t, int64(2), userRecord.TelegramConfig.UserId)
 	require.Equal(t, "2t", userRecord.TelegramConfig.Token)
-
-	userName, found := GetTelegramUserNameByTelegramUserIdRL(1)
-	require.True(t, found)
-	require.Equal(t, "1u", userName)
-
-	userName, found = GetTelegramUserNameByTelegramUserIdRL(2)
-	require.True(t, found)
-	require.Equal(t, "2u", userName)
 }

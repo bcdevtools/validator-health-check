@@ -7,6 +7,7 @@ const (
 	MINIMUM_WORKER_HEALTH_CHECK = 5
 )
 
+//goland:noinspection GoSnakeCaseUsage
 const (
 	MINIMUM_BETWEEN_TELEGRAM_PUSH_SAME_USER = 1 * time.Minute
 

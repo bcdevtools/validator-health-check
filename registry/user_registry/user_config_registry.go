@@ -32,7 +32,6 @@ func UpdateUsersConfigWL(userRecords config.UserRecords) error {
 	return nil
 }
 
-// TODO remove if not use
 func GetUserRecordByIdentityRL(identity string) (userRecord config.UserRecord, found bool) {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -41,7 +40,6 @@ func GetUserRecordByIdentityRL(identity string) (userRecord config.UserRecord, f
 	return
 }
 
-// TODO remove if not use
 func GetUserRecordByTelegramUserIdRL(telegramUserId int64) (userRecord config.UserRecord, found bool) {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -52,17 +50,5 @@ func GetUserRecordByTelegramUserIdRL(telegramUserId int64) (userRecord config.Us
 	}
 
 	userRecord, found = globalIdentityToUsersConfig[identity]
-	return
-}
-
-// TODO remove if not use
-func GetTelegramUserNameByTelegramUserIdRL(telegramUserId int64) (telegramUserName string, found bool) {
-	userRecord, found := GetUserRecordByTelegramUserIdRL(telegramUserId)
-	if !found {
-		return
-	}
-
-	telegramUserName = userRecord.TelegramConfig.Username
-	found = telegramUserName != ""
 	return
 }

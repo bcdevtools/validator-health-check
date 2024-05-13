@@ -1,5 +1,6 @@
 package rpc_client_registry
 
+//goland:noinspection SpellCheckingInspection
 import (
 	"fmt"
 	"github.com/EscanBE/go-lib/logging"

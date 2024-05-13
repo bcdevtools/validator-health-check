@@ -58,16 +58,3 @@ func GetFirstChainConfigForHealthCheckRL(minDurationSinceLastHealthCheck time.Du
 
 	return nil
 }
-
-// TODO remove if not use
-func GetChainsConfigRL() []RegisteredChainConfig {
-	mutex.RLock()
-	defer mutex.RUnlock()
-
-	var chainsConfig []RegisteredChainConfig
-	for _, chainConfig := range globalChainNameToChainConfig {
-		chainsConfig = append(chainsConfig, chainConfig)
-	}
-
-	return chainsConfig
-}

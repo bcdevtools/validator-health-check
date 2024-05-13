@@ -1,5 +1,6 @@
 package telegram_push_message_svc
 
+//goland:noinspection SpellCheckingInspection
 import (
 	"fmt"
 	libapp "github.com/EscanBE/go-lib/app"

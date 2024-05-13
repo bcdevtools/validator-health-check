@@ -41,23 +41,6 @@ func GetValconsByValoperRL(chainName string, valoper string) (valcons string, fo
 	return
 }
 
-// TODO remove if not use
-//
-//goland:noinspection SpellCheckingInspection
-func GetValoperByValconsRL(chainName string, valcons string) (valoper string, found bool) {
-	mutex.RLock()
-	defer mutex.RUnlock()
-
-	var mapper map[string]string
-	mapper, found = globalValconsToValoper[chainName]
-	if !found {
-		return
-	}
-
-	valoper, found = mapper[valcons]
-	return
-}
-
 func init() {
 	globalValoperToValcons = make(map[string]map[string]string)
 	globalValconsToValoper = make(map[string]map[string]string)

@@ -1,5 +1,6 @@
 package health_check_worker
 
+//goland:noinspection SpellCheckingInspection
 import (
 	"context"
 	"encoding/hex"
