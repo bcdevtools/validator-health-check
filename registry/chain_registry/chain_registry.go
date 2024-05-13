@@ -41,7 +41,9 @@ func UpdateChainsConfigWL(chainConfigs config.ChainsConfig, usersConfig *config.
 	return nil
 }
 
-// TODO remove if not use
+// GetFirstChainConfigForHealthCheckRL returns the first chain config that needs to be health-checked.
+//
+// NOTICE: this update the last health-check of the chain to recent time, so that the next health-check worker will not pick it up.
 func GetFirstChainConfigForHealthCheckRL(minDurationSinceLastHealthCheck time.Duration) RegisteredChainConfig {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -49,6 +51,7 @@ func GetFirstChainConfigForHealthCheckRL(minDurationSinceLastHealthCheck time.Du
 	for _, chainConfig := range globalChainNameToChainConfig {
 		lastHealthCheckUTC := chainConfig.GetLastHealthCheckUtcRL()
 		if time.Since(lastHealthCheckUTC) >= minDurationSinceLastHealthCheck {
+			chainConfig.SetLastHealthCheckUtcWL() // prevent double health-check
 			return chainConfig
 		}
 	}

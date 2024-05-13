@@ -32,6 +32,7 @@ var initCmd = &cobra.Command{
 			fmt.Sprintf(`# %s's configuration file
 general:
   hot-reload: 5m
+  health-check: 10m
 worker:
 logging:
   level: info # debug || info || error
@@ -50,7 +51,9 @@ users:
 `, constants.APP_NAME))
 
 		writeYamlFile("Chain", path.Join(homeDir, fmt.Sprintf("%stest.%s", constants.CHAIN_FILE_NAME_PREFIX, constants.CONFIG_TYPE)), // trailing style: 2 spaces
-			`chain-name: test
+			`
+chain-name: "test"
+chain-id: "test"
 disable: true
 priority: false
 rpc: []

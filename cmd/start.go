@@ -11,8 +11,8 @@ import (
 	tbotreg "github.com/bcdevtools/validator-health-check/registry/telegram_bot_registry"
 	usereg "github.com/bcdevtools/validator-health-check/registry/user_registry"
 	"github.com/bcdevtools/validator-health-check/utils"
-	"github.com/bcdevtools/validator-health-check/work"
-	workertypes "github.com/bcdevtools/validator-health-check/work/types"
+	"github.com/bcdevtools/validator-health-check/work/health_check_worker"
+	workertypes "github.com/bcdevtools/validator-health-check/work/health_check_worker/types"
 	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
@@ -72,17 +72,18 @@ var startCmd = &cobra.Command{
 
 		// Create workers
 
-		// Start workers
-		workerWorkingCtx := &workertypes.WorkerContext{
-			WorkerID: time.Now().UTC().String(),
-			AppCtx:   *ctx,
-			Logger:   ctx.Logger,
-			RoCfg:    workertypes.WorkerReadonlyConfig{},
-			RwCache:  &workertypes.WorkerWritableCache{},
-		}
+		// Start health-check workers
+		for id := 1; id <= appCfg.WorkerConfig.HealthCheckCount; id++ {
+			workerWorkingCtx := &workertypes.HcwContext{
+				WorkerID: id,
+				AppCtx:   *ctx,
+				RoCfg:    workertypes.WorkerReadonlyConfig{},
+				RwCache:  &workertypes.WorkerWritableCache{},
+			}
 
-		logger.Debug("starting worker")
-		go work.NewWorker(workerWorkingCtx).Start()
+			logger.Debug("starting health-check worker", "wid", workerWorkingCtx.WorkerID)
+			go health_check_worker.NewHcWorker(workerWorkingCtx).Start()
+		}
 
 		// end
 		waitGroup.Wait()
@@ -213,9 +214,9 @@ func safeSendTelegramMessageToAll(ctx *config.AppContext, action string, message
 			if bot.IsPriorityRL() {
 				_bot := bot.GetInnerTelegramBot()
 				for _, chatId := range chatIds {
-					err := utils.Retry(func() error {
+					_, err := utils.Retry[string](func() (string, error) {
 						_, err := _bot.SendMessage(message, chatId)
-						return err
+						return "", err
 					})
 					if err != nil {
 						ctx.Logger.Error("failed to send telegram message to chat", "chat-id", chatId, "action", action, "priority", bot.IsPriorityRL(), "error", err.Error())

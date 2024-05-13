@@ -1,16 +1,12 @@
 package types
 
 import (
-	"github.com/EscanBE/go-lib/logging"
 	"github.com/bcdevtools/validator-health-check/config"
 )
 
-// WorkerContext hold the working context for each of the worker.
-// In here, we can save identity, config, caches,...
-type WorkerContext struct {
-	WorkerID string
+type HcwContext struct {
+	WorkerID int
 	AppCtx   config.AppContext
-	Logger   logging.Logger
 	RoCfg    WorkerReadonlyConfig
 	RwCache  *WorkerWritableCache
 }

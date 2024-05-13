@@ -28,10 +28,10 @@ func (m RetryOption) MaxDuration(maximumRetryDuration time.Duration) RetryOption
 
 var defaultRetryOption = DefaultRetryOption()
 
-func Retry(
-	f func() error,
+func Retry[T any](
+	f func() (T, error),
 	retryOption ...RetryOption,
-) (err error) {
+) (res T, err error) {
 	startTime := time.Now().UTC()
 	tryCount := -1
 
@@ -50,7 +50,7 @@ func Retry(
 			time.Sleep(100 * time.Millisecond)
 		}
 
-		err = f()
+		res, err = f()
 		if err == nil {
 			return
 		}

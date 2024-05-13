@@ -15,6 +15,7 @@ import (
 
 type ChainConfig struct {
 	ChainName  string                          `mapstructure:"chain-name"`
+	ChainId    string                          `mapstructure:"chain-id"`
 	Disable    bool                            `mapstructure:"disable,omitempty"`
 	Priority   bool                            `mapstructure:"priority,omitempty"`
 	RPCs       []string                        `mapstructure:"rpc"`
@@ -100,6 +101,14 @@ func (c ChainConfig) Validate() error {
 
 	if !regexp.MustCompile(`^[\w-]+$`).MatchString(c.ChainName) {
 		return fmt.Errorf("chain name must be alphanumeric, underscore, and dash only")
+	}
+
+	if c.ChainId == "" {
+		return fmt.Errorf("chain id is missing")
+	}
+
+	if !regexp.MustCompile(`^[\w-]+$`).MatchString(c.ChainId) {
+		return fmt.Errorf("chain id must be alphanumeric, underscore, and dash only")
 	}
 
 	if c.Disable {

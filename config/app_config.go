@@ -19,10 +19,12 @@ type AppConfig struct {
 }
 
 type GeneralConfig struct {
-	HotReloadInterval time.Duration `mapstructure:"hot-reload"`
+	HotReloadInterval   time.Duration `mapstructure:"hot-reload"`
+	HealthCheckInterval time.Duration `mapstructure:"health-check"`
 }
 
 type WorkerConfig struct {
+	HealthCheckCount int `mapstructure:"health-check-count"`
 }
 
 // LoadAppConfig load the configuration from `config.yaml` file within the specified application's home directory
@@ -70,9 +72,10 @@ func LoadAppConfig(homeDir string) (*AppConfig, error) {
 func (c AppConfig) PrintOptions() {
 	headerPrintln("- General:")
 	headerPrintf("  + Hot-reload: %s\n", c.General.HotReloadInterval)
+	headerPrintf("  + Health-check: %s\n", c.General.HealthCheckInterval)
 
 	headerPrintln("- Worker's behavior:")
-	// TODO print worker
+	headerPrintf("  + Health-check count: %d\n", c.WorkerConfig.HealthCheckCount)
 
 	headerPrintln("- Logging:")
 	if len(c.Logging.Level) < 1 {
@@ -103,8 +106,14 @@ func (c AppConfig) Validate() error {
 	if c.General.HotReloadInterval < 1*time.Minute {
 		return fmt.Errorf("hot-reload interval must be at least 1 minute")
 	}
+	if c.General.HealthCheckInterval < 30*time.Second {
+		return fmt.Errorf("health-check interval must be at least 30 seconds")
+	}
 
-	// TODO validator Worker section
+	// validate Worker section
+	if c.WorkerConfig.HealthCheckCount < constants.MINIMUM_WORKER_HEALTH_CHECK {
+		return fmt.Errorf("workers health-check must be at least %d", constants.MINIMUM_WORKER_HEALTH_CHECK)
+	}
 
 	// validate Logging section
 	errLogCfg := c.Logging.Validate()
