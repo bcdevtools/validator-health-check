@@ -1,6 +1,9 @@
 package utils
 
-import "testing"
+import (
+	"github.com/stretchr/testify/require"
+	"testing"
+)
 
 func TestReplaceAnySchemeWithHttp(t *testing.T) {
 	tests := []struct {
@@ -44,6 +47,91 @@ func TestReplaceAnySchemeWithHttp(t *testing.T) {
 			if got := ReplaceAnySchemeWithHttp(tt.endpoint); got != tt.want {
 				t.Errorf("ReplaceAnySchemeWithHttp() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+//goland:noinspection HttpUrlsUsage
+func TestNormalizeRpcEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		want     string
+	}{
+		{
+			name:     "normal",
+			endpoint: "http://google.com",
+			want:     "http://google.com:80",
+		},
+		{
+			name:     "normal TLS",
+			endpoint: "https://google.com",
+			want:     "https://google.com:443",
+		},
+		{
+			name:     "normal ws",
+			endpoint: "ws://google.com",
+			want:     "ws://google.com:80",
+		},
+		{
+			name:     "normal ws TLS",
+			endpoint: "wss://google.com",
+			want:     "wss://google.com:443",
+		},
+		{
+			name:     "without protocol",
+			endpoint: "google.com",
+			want:     "google.com:80",
+		},
+		{
+			name:     "without protocol, with sub-path",
+			endpoint: "google.com/rpc",
+			want:     "google.com:80/rpc",
+		},
+		{
+			name:     "with suffix /",
+			endpoint: "http://google.com/",
+			want:     "http://google.com:80",
+		},
+		{
+			name:     "normal TLS with suffix /",
+			endpoint: "https://google.com/",
+			want:     "https://google.com:443",
+		},
+		{
+			name:     "with sub-path",
+			endpoint: "http://google.com/rpc/",
+			want:     "http://google.com:80/rpc",
+		},
+		{
+			name:     "TLS with sub-path",
+			endpoint: "https://google.com/rpc/",
+			want:     "https://google.com:443/rpc",
+		},
+		{
+			name:     "keep port",
+			endpoint: "http://google.com:80",
+			want:     "http://google.com:80",
+		},
+		{
+			name:     "keep port",
+			endpoint: "http://google.com:123",
+			want:     "http://google.com:123",
+		},
+		{
+			name:     "keep port",
+			endpoint: "https://google.com:123",
+			want:     "https://google.com:123",
+		},
+		{
+			name:     "keep port",
+			endpoint: "https://google.com:123/rpc/",
+			want:     "https://google.com:123/rpc",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, NormalizeRpcEndpoint(tt.endpoint))
 		})
 	}
 }

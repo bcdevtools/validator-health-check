@@ -2,6 +2,7 @@ package rpc_client_registry
 
 import (
 	"github.com/EscanBE/go-lib/logging"
+	"github.com/bcdevtools/validator-health-check/utils"
 	"sync"
 )
 
@@ -12,6 +13,9 @@ func GetRpcClientByEndpointWL(endpoint string, logger logging.Logger) (RpcClient
 	if endpoint == "" {
 		panic("empty rpc endpoint")
 	}
+
+	endpoint = utils.ReplaceAnySchemeWithHttp(endpoint)
+	endpoint = utils.NormalizeRpcEndpoint(endpoint)
 
 	client, found, err := getRpcClientByEndpointRL(endpoint, true)
 	if err != nil {
