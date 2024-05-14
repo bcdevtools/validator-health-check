@@ -4,12 +4,10 @@ package rpc_client_registry
 import (
 	"fmt"
 	"github.com/EscanBE/go-lib/logging"
-	"github.com/bcdevtools/validator-health-check/utils"
 	"github.com/pkg/errors"
 	httpclient "github.com/tendermint/tendermint/rpc/client/http"
 	jsonrpcclient "github.com/tendermint/tendermint/rpc/jsonrpc/client"
 	"net/http"
-	"strings"
 )
 
 type RpcClient interface {
@@ -27,10 +25,7 @@ type rpcClient struct {
 }
 
 func newRpcClient(endpoint string) (RpcClient, error) {
-	httpEndpoint := utils.ReplaceAnySchemeWithHttp(endpoint)
-	httpEndpoint = strings.TrimSuffix(httpEndpoint, "/")
-
-	httpClient26657, websocketClient26657, err := getTendermintClient(httpEndpoint)
+	httpClient26657, websocketClient26657, err := getTendermintClient(endpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create Tendermint client")
 	}
