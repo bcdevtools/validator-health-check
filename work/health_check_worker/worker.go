@@ -12,7 +12,7 @@ import (
 	"github.com/bcdevtools/validator-health-check/constants"
 	chainreg "github.com/bcdevtools/validator-health-check/registry/chain_registry"
 	rpcreg "github.com/bcdevtools/validator-health-check/registry/rpc_client_registry"
-	"github.com/bcdevtools/validator-health-check/registry/user_registry"
+	usereg "github.com/bcdevtools/validator-health-check/registry/user_registry"
 	valaddreg "github.com/bcdevtools/validator-health-check/registry/validator_address_registry"
 	tpsvc "github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc"
 	tptypes "github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc/types"
@@ -70,7 +70,7 @@ func (w Worker) Start() {
 					continue
 				}
 				for _, identity := range validator.WatchersIdentity {
-					userRecord, found := user_registry.GetUserRecordByIdentityRL(identity)
+					userRecord, found := usereg.GetUserRecordByIdentityRL(identity)
 					if !found {
 						panic(fmt.Sprintf("user not found, weird! identity: %s", identity))
 					}
@@ -433,6 +433,62 @@ func (w Worker) Start() {
 							}
 						}
 					}(validator, valoperAddr)
+				}
+			}
+
+			// health-check managed RPCs
+			if len(registeredChainConfig.GetHealthCheckRPCs()) > 0 {
+				rootUsersIdentity := usereg.GetRootUsersIdentityRL()
+				if len(rootUsersIdentity) == 0 {
+					logger.Error("no root user to report, skipping health-check managed RPCs", "chain", chainName)
+				} else {
+					for _, managedRPC := range registeredChainConfig.GetHealthCheckRPCs() {
+						func(managedRPC string, rootUsersIdentity []string) {
+							var errorToReport error
+
+							defer func() {
+								if errorToReport != nil {
+									logger.Error("health-check managed RPC failed", "chain", chainName, "managed_rpc", managedRPC, "error", errorToReport.Error())
+									sendToWatchers := tpsvc.ShouldSendMessageWL(
+										tpsvc.PreventSpammingCaseHealthCheckManagedRPC,
+										rootUsersIdentity,
+										30*time.Minute,
+									)
+									if len(sendToWatchers) > 0 {
+										enqueueTelegramMessageByIdentity(
+											"",
+											errorToReport.Error(),
+											false,
+											sendToWatchers...,
+										)
+									}
+								}
+							}()
+
+							rpcClient, err := rpcreg.GetRpcClientByEndpointWL(managedRPC, logger)
+							if err != nil {
+								errorToReport = errors.Wrapf(err, "failed to get RPC client to health-check managed RPC %s", managedRPC)
+								return
+							}
+
+							resultStatus, err := utils.Retry(func() (*coretypes.ResultStatus, error) {
+								return rpcClient.GetWebsocketClient().Status(context.Background())
+							})
+							if err != nil {
+								errorToReport = errors.Wrapf(err, "failed to get status for health-check managed RPC %s", managedRPC)
+								return
+							}
+
+							if resultStatus.SyncInfo.CatchingUp {
+								errorToReport = fmt.Errorf("managed RPC node is catching up, block %d, time %v", resultStatus.SyncInfo.LatestBlockHeight, resultStatus.SyncInfo.LatestBlockTime)
+								return
+							}
+
+							if diff := time.Since(resultStatus.SyncInfo.LatestBlockTime.UTC()); diff >= 180*time.Second {
+								errorToReport = fmt.Errorf("managed RPC node is out dated %d, time %v, server time %v", int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC())
+							}
+						}(managedRPC, rootUsersIdentity)
+					}
 				}
 			}
 		}(registeredChainConfig)

@@ -13,6 +13,7 @@ const (
 	PreventSpammingCaseLowUptime
 	PreventSpammingCaseMissedBlocksOverDangerousThreshold
 	PreventSpammingCaseDirectHealthCheckOptionalRPC
+	PreventSpammingCaseHealthCheckManagedRPC
 )
 
 var mutexRwPreventSpamming sync.RWMutex
