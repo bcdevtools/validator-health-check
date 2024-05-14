@@ -62,6 +62,7 @@ validators:
   valoper1:
     watchers: []
     health-check-rpc: ""
+health-check-rpc: []
 `)
 
 		fmt.Println("Initialized successfully!")

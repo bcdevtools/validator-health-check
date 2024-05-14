@@ -14,12 +14,13 @@ import (
 )
 
 type ChainConfig struct {
-	ChainName  string                           `mapstructure:"chain-name"`
-	ChainId    string                           `mapstructure:"chain-id"`
-	Disable    bool                             `mapstructure:"disable,omitempty"`
-	Priority   bool                             `mapstructure:"priority,omitempty"`
-	RPCs       []string                         `mapstructure:"rpc"`
-	Validators map[string]*ChainValidatorConfig `mapstructure:"validators"`
+	ChainName      string                           `mapstructure:"chain-name"`
+	ChainId        string                           `mapstructure:"chain-id"`
+	Disable        bool                             `mapstructure:"disable,omitempty"`
+	Priority       bool                             `mapstructure:"priority,omitempty"`
+	RPCs           []string                         `mapstructure:"rpc"`
+	Validators     map[string]*ChainValidatorConfig `mapstructure:"validators"`
+	HealthCheckRPC []string                         `mapstructure:"health-check-rpc,omitempty"`
 }
 
 type ChainsConfig []ChainConfig
@@ -119,9 +120,6 @@ func (c ChainConfig) Validate() error {
 		return nil
 	}
 
-	if len(c.RPCs) == 0 {
-		return fmt.Errorf("RPCs are missing")
-	}
 	for _, rpc := range c.RPCs {
 		if rpc == "" {
 			return fmt.Errorf("RPCs contains empty string")
@@ -147,6 +145,16 @@ func (c ChainConfig) Validate() error {
 				return fmt.Errorf("watchers for %s contains empty string", validator.ValidatorOperatorAddress)
 			}
 		}
+	}
+
+	for _, rpc := range c.HealthCheckRPC {
+		if rpc == "" {
+			return fmt.Errorf("Health-check-RPCs contains empty string")
+		}
+	}
+
+	if len(c.RPCs) == 0 && len(c.HealthCheckRPC) == 0 {
+		return fmt.Errorf("either RPCs or Health-check-RPCs are required")
 	}
 
 	return nil

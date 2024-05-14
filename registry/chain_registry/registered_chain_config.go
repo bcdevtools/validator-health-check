@@ -2,7 +2,7 @@ package chain_registry
 
 import (
 	"github.com/bcdevtools/validator-health-check/config"
-	"strings"
+	"github.com/bcdevtools/validator-health-check/utils"
 	"sync"
 	"time"
 )
@@ -14,6 +14,7 @@ type RegisteredChainConfig interface {
 	GetRPCs() []string
 	InformPriorityLatestHealthyRpcWL(string)
 	GetValidators() []ValidatorOfRegisteredChainConfig
+	GetHealthCheckRPCs() []string
 	GetLastHealthCheckUtcRL() time.Time
 	SetLastHealthCheckUtcWL()
 }
@@ -33,28 +34,31 @@ type registeredChainConfig struct {
 	priority           bool
 	rpc                []string
 	validators         []ValidatorOfRegisteredChainConfig
+	healthCheckRPC     []string
 	lastHealthCheckUtc time.Time
 }
 
 func newRegisteredChainConfig(chainConfig config.ChainConfig) RegisteredChainConfig {
 	normalizeRPC := func(rpc string) string {
 		if rpc != "" {
-			rpc = strings.TrimSuffix(rpc, "/")
+			rpc = utils.ReplaceAnySchemeWithHttp(rpc)
+			rpc = utils.NormalizeRpcEndpoint(rpc)
 		}
 		return rpc
+	}
+	normalizeRPCs := func(rpc ...string) []string {
+		normalizedRPCs := make([]string, len(rpc))
+		for i, r := range rpc {
+			normalizedRPCs[i] = normalizeRPC(r)
+		}
+		return normalizedRPCs
 	}
 
 	return &registeredChainConfig{
 		chainName: chainConfig.ChainName,
 		chainId:   chainConfig.ChainId,
 		priority:  chainConfig.Priority,
-		rpc: func(rpc ...string) []string {
-			normalizedRPCs := make([]string, len(rpc))
-			for i, r := range rpc {
-				normalizedRPCs[i] = normalizeRPC(r)
-			}
-			return normalizedRPCs
-		}(chainConfig.RPCs...),
+		rpc:       normalizeRPCs(utils.Distinct[string](append(chainConfig.RPCs, chainConfig.HealthCheckRPC...)...)...),
 		validators: func() []ValidatorOfRegisteredChainConfig {
 			var validators []ValidatorOfRegisteredChainConfig
 			for _, chainValidatorConfig := range chainConfig.Validators {
@@ -66,6 +70,7 @@ func newRegisteredChainConfig(chainConfig config.ChainConfig) RegisteredChainCon
 			}
 			return validators
 		}(),
+		healthCheckRPC: normalizeRPCs(chainConfig.HealthCheckRPC...),
 	}
 }
 
@@ -106,6 +111,10 @@ func (r *registeredChainConfig) InformPriorityLatestHealthyRpcWL(rpc string) {
 
 func (r *registeredChainConfig) GetValidators() []ValidatorOfRegisteredChainConfig {
 	return r.validators[:]
+}
+
+func (r *registeredChainConfig) GetHealthCheckRPCs() []string {
+	return r.healthCheckRPC
 }
 
 func (r *registeredChainConfig) GetLastHealthCheckUtcRL() time.Time {

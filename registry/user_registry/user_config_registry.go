@@ -52,3 +52,16 @@ func GetUserRecordByTelegramUserIdRL(telegramUserId int64) (userRecord config.Us
 	userRecord, found = globalIdentityToUsersConfig[identity]
 	return
 }
+
+func GetRootUsersIdentityRL() []string {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
+	var rootUsersIdentity []string
+	for identity, userRecord := range globalIdentityToUsersConfig {
+		if userRecord.Root {
+			rootUsersIdentity = append(rootUsersIdentity, identity)
+		}
+	}
+	return rootUsersIdentity
+}

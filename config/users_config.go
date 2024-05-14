@@ -120,6 +120,7 @@ func (r UserRecords) Validate() error {
 	uniqueIdentities := make(map[string]bool)
 	uniqueTelegramUsername := make(map[string]bool)
 	uniqueTelegramUserId := make(map[int64]bool)
+	var anyRoot bool
 
 	for _, userRecord := range r {
 		if err := userRecord.Validate(); err != nil {
@@ -139,6 +140,13 @@ func (r UserRecords) Validate() error {
 			}
 			uniqueTelegramUserId[userRecord.TelegramConfig.UserId] = true
 		}
+		if userRecord.Root {
+			anyRoot = true
+		}
+	}
+
+	if !anyRoot {
+		return fmt.Errorf("no root user")
 	}
 
 	return nil
