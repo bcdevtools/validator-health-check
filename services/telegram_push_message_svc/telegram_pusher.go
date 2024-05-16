@@ -4,6 +4,7 @@ package telegram_push_message_svc
 import (
 	"fmt"
 	libapp "github.com/EscanBE/go-lib/app"
+	"github.com/bcdevtools/validator-health-check/config"
 	"github.com/bcdevtools/validator-health-check/constants"
 	"github.com/bcdevtools/validator-health-check/registry/telegram_bot_registry"
 	"github.com/bcdevtools/validator-health-check/registry/user_registry"
@@ -20,19 +21,19 @@ var telePusherSvc *telegramPusher
 
 type telegramPusher struct {
 	sync.RWMutex
-	ctx                 *tptypes.TpContext
+	appCtx              config.AppContext
 	queuesReceiverBased map[int64]ReceiverBasedQueue
 	priorityQueue       []ReceiverBasedQueue
 	nonPriorityQueue    []ReceiverBasedQueue
 }
 
-func StartTelegramPusherService(tpCtx tptypes.TpContext) {
+func StartTelegramPusherService(appCtx config.AppContext) {
 	if telePusherSvc != nil {
 		panic("to prevent API limit issue, only one instance of Telegram Pusher is allowed")
 	}
 
 	telePusherSvc = &telegramPusher{
-		ctx:                 &tpCtx,
+		appCtx:              appCtx,
 		queuesReceiverBased: make(map[int64]ReceiverBasedQueue),
 	}
 
@@ -66,7 +67,7 @@ func (tp *telegramPusher) enqueueMessageWL(message tptypes.QueueMessage) {
 }
 
 func (tp *telegramPusher) start() {
-	logger := tp.ctx.AppCtx.Logger
+	logger := tp.appCtx.Logger
 	defer libapp.TryRecoverAndExecuteExitFunctionIfRecovered(logger)
 
 	var pushedPreviousTurn bool

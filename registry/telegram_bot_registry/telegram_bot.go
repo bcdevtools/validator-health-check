@@ -32,16 +32,16 @@ type telegramBot struct {
 	priority bool
 }
 
-func (t *telegramBot) BotID() string {
-	return t.id
-}
-
 func newTelegramBot(bot *libbot.TelegramBot) TelegramBot {
 	return &telegramBot{
 		id:      uuid.New().String(),
 		bot:     bot,
 		chatIds: make(map[int64]bool),
 	}
+}
+
+func (t *telegramBot) BotID() string {
+	return t.id
 }
 
 func (t *telegramBot) GetInnerTelegramBot() *libbot.TelegramBot {

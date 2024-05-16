@@ -62,3 +62,18 @@ func GetFirstChainConfigForHealthCheckRL(minDurationSinceLastHealthCheck time.Du
 
 	return nil
 }
+
+// GetCopyAllChainConfigsRL returns a copy of all chain configs.
+func GetCopyAllChainConfigsRL() []RegisteredChainConfig {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
+	result := make([]RegisteredChainConfig, len(globalChainNameToChainConfig))
+	idx := 0
+	for _, chainConfig := range globalChainNameToChainConfig {
+		result[idx] = chainConfig
+		idx++
+	}
+
+	return result
+}
