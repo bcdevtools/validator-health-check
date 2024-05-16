@@ -109,7 +109,6 @@ func (c ChainsConfig) PrintOptions() {
 		headerPrintf("    > Priority: %t\n", chainConfig.Priority)
 		headerPrintf("    > RPCs: %d\n", len(chainConfig.RPCs))
 		headerPrintf("    > Managed RPCs: %d\n", len(chainConfig.HealthCheckRPC))
-		headerPrintf("    > Managed RPCs: %d\n", len(chainConfig.Validators))
 		headerPrintf("    > Validators (%d): %s\n", len(chainConfig.Validators), func() string {
 			var valopers []string
 			for valoper := range chainConfig.Validators {
