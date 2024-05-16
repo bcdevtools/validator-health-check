@@ -31,6 +31,7 @@ func (e *employee) processCommandPause(updateCtx *telegramUpdateCtx) error {
 
 	target := spl[0]
 	var duration *time.Duration
+	var ultimatePause bool
 	if len(spl) > 1 {
 		part := spl[1]
 		switch part {
@@ -55,24 +56,19 @@ func (e *employee) processCommandPause(updateCtx *telegramUpdateCtx) error {
 	} else {
 		dur := 30 * 365 * 24 * time.Hour
 		duration = &dur
+		ultimatePause = true
 	}
 
 	if updateCtx.isRootUser && !strings.Contains(target, "valoper") {
-		found, err := e.processCommandPauseTryChainForRoot(updateCtx, target, duration)
-		if err != nil {
+		found, err := e.processCommandPauseTryChainForRoot(updateCtx, target, duration, ultimatePause)
+		if found || err != nil {
 			return err
-		}
-		if found {
-			return nil
 		}
 	}
 
-	found, err := e.processCommandPauseTryValidator(updateCtx, target, duration)
-	if err != nil {
+	found, err := e.processCommandPauseTryValidator(updateCtx, target, duration, ultimatePause)
+	if found || err != nil {
 		return err
-	}
-	if found {
-		return nil
 	}
 
 	if updateCtx.isRootUser {
@@ -86,7 +82,7 @@ func (e *employee) processCommandPause(updateCtx *telegramUpdateCtx) error {
 	return e.sendResponse(updateCtx, sb.String())
 }
 
-func (e *employee) processCommandPauseTryChainForRoot(updateCtx *telegramUpdateCtx, chain string, duration *time.Duration) (found bool, err error) {
+func (e *employee) processCommandPauseTryChainForRoot(updateCtx *telegramUpdateCtx, chain string, duration *time.Duration, ultimatePause bool) (found bool, err error) {
 	if !updateCtx.isRootUser {
 		panic("this method should only be called by root user")
 	}
@@ -97,17 +93,34 @@ func (e *employee) processCommandPauseTryChainForRoot(updateCtx *telegramUpdateC
 
 	if duration == nil {
 		chainreg.UnpauseChainWL(chain)
-		e.enqueueToAllRootUsers(updateCtx, fmt.Sprintf("%s has unpaused chain [%s]", updateCtx.username, chain), false)
-		return true, nil
+		e.enqueueToAllRootUsers(
+			updateCtx,
+			fmt.Sprintf("%s (%s) has unpaused chain [%s]", updateCtx.identity, updateCtx.username, chain),
+			false,
+		)
+		return true, e.sendResponse(updateCtx, fmt.Sprintf("Chain [%s] has unpaused", chain))
 	}
 
 	expiry := chainreg.PauseChainWL(chain, *duration)
-	e.enqueueToAllRootUsers(updateCtx, fmt.Sprintf("%s has paused chain [%s] for %s, until %s", updateCtx.username, chain, duration.String(), expiry), true)
-
-	return false, nil
+	e.enqueueToAllRootUsers(
+		updateCtx,
+		fmt.Sprintf("%s (%s) has PAUSED chain [%s] %s", updateCtx.identity, updateCtx.username, chain, func() string {
+			if ultimatePause {
+				return "without release date"
+			} else {
+				return fmt.Sprintf("for %s, until %s", duration.String(), expiry)
+			}
+		}()),
+		true,
+	)
+	if ultimatePause {
+		return true, e.sendResponse(updateCtx, fmt.Sprintf("Chain [%s] has been PAUSED without release date", chain))
+	} else {
+		return true, e.sendResponse(updateCtx, fmt.Sprintf("Chain [%s] has been PAUSED for %s, until %s", chain, duration.String(), expiry))
+	}
 }
 
-func (e *employee) processCommandPauseTryValidator(updateCtx *telegramUpdateCtx, valoper string, duration *time.Duration) (found bool, err error) {
+func (e *employee) processCommandPauseTryValidator(updateCtx *telegramUpdateCtx, valoper string, duration *time.Duration, ultimatePause bool) (found bool, err error) {
 	var chainName string
 	var granted bool
 
@@ -148,18 +161,28 @@ func (e *employee) processCommandPauseTryValidator(updateCtx *telegramUpdateCtx,
 		chainreg.UnpauseValidatorWL(valoper)
 		e.enqueueToAllRootUsers(
 			updateCtx,
-			fmt.Sprintf("%s has unpaused validator [%s] in chain [%s]", updateCtx.username, valoper, chainName),
+			fmt.Sprintf("%s (%s) has unpaused validator [%s] on [%s]", updateCtx.identity, updateCtx.username, valoper, chainName),
 			false,
 		)
-		return true, nil
+		return true, e.sendResponse(updateCtx, fmt.Sprintf("Validator [%s] on [%s] has unpaused", valoper, chainName))
 	}
 
 	expiry := chainreg.PauseValidatorWL(valoper, *duration)
 	e.enqueueToAllRootUsers(
 		updateCtx,
-		fmt.Sprintf("%s has paused validator [%s] in chain [%s] for %s, until %s", updateCtx.username, valoper, chainName, duration.String(), expiry),
+		fmt.Sprintf("%s (%s) has PAUSED validator [%s] on %s %s", updateCtx.identity, updateCtx.username, valoper, chainName, func() string {
+			if ultimatePause {
+				return "without release date"
+			} else {
+				return fmt.Sprintf("for %s, until %s", duration.String(), expiry)
+			}
+		}()),
 		true,
 	)
 
-	return false, nil
+	if ultimatePause {
+		return true, e.sendResponse(updateCtx, fmt.Sprintf("Validator [%s] on %s has been PAUSED without release date", valoper, chainName))
+	} else {
+		return true, e.sendResponse(updateCtx, fmt.Sprintf("Validator [%s] on %s has been PAUSED for %s, until %s", valoper, chainName, duration.String(), expiry))
+	}
 }

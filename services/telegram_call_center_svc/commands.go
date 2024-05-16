@@ -6,4 +6,5 @@ const (
 	commandChains     = "chains"
 	commandValidators = "validators"
 	commandPause      = "pause"
+	commandStatus     = "status"
 )
