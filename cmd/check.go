@@ -24,6 +24,8 @@ var checkCmd = &cobra.Command{
 
 		// Output some options to console
 		appConf.PrintOptions()
+		usersConf.PrintOptions()
+		chainsConf.PrintOptions()
 
 		// Perform validation
 		err = appConf.Validate()

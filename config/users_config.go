@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strings"
 )
 
 type UsersConfig struct {
@@ -67,6 +68,26 @@ func LoadUsersConfig(homeDir string) (*UsersConfig, error) {
 	}
 
 	return conf, nil
+}
+
+func (c UsersConfig) PrintOptions() {
+	headerPrintln("- Users:")
+	for identity, userRecord := range c.Users {
+		headerPrintf("  + \"%s\":\n", identity)
+		headerPrintf("    > Root: %t\n", userRecord.Root)
+		if userRecord.TelegramConfig != nil {
+			headerPrintf("    > Telegram username: %s\n", userRecord.TelegramConfig.Username)
+			headerPrintf("    > Telegram user-id: %d\n", userRecord.TelegramConfig.UserId)
+			headerPrintf("    > Telegram token: %s\n", func() string {
+				if strings.TrimSpace(userRecord.TelegramConfig.Token) == "" {
+					return "none"
+				}
+				return "yes"
+			}())
+		} else {
+			headerPrintf("    > No telegram configuration\n")
+		}
+	}
 }
 
 func (c UsersConfig) ToUserRecords() UserRecords {

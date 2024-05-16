@@ -99,6 +99,27 @@ func LoadChainsConfig(homeDir string) (ChainsConfig, error) {
 	return chainsConfig, nil
 }
 
+func (c ChainsConfig) PrintOptions() {
+	headerPrintln("- Chains:")
+	for _, chainConfig := range c {
+		if chainConfig.Disable {
+			continue
+		}
+		headerPrintf("  + %s (%s):\n", chainConfig.ChainName, chainConfig.ChainId)
+		headerPrintf("    > Priority: %t\n", chainConfig.Priority)
+		headerPrintf("    > RPCs: %d\n", len(chainConfig.RPCs))
+		headerPrintf("    > Managed RPCs: %d\n", len(chainConfig.HealthCheckRPC))
+		headerPrintf("    > Managed RPCs: %d\n", len(chainConfig.Validators))
+		headerPrintf("    > Validators (%d): %s\n", len(chainConfig.Validators), func() string {
+			var valopers []string
+			for valoper := range chainConfig.Validators {
+				valopers = append(valopers, valoper)
+			}
+			return strings.Join(valopers, ", ")
+		}())
+	}
+}
+
 func (c ChainConfig) Validate() error {
 	if c.ChainName == "" {
 		return fmt.Errorf("chain name is missing")
