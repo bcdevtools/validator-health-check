@@ -13,6 +13,7 @@ func (e *employee) processCommandHelp(updateCtx *telegramUpdateCtx) error {
 	sb.WriteString(fmt.Sprintf("\n/%s - Show your user information", commandMe))
 	sb.WriteString(fmt.Sprintf("\n/%s - Show chains you subscribed", commandChains))
 	sb.WriteString(fmt.Sprintf("\n/%s - Show validators you subscribed", commandValidators))
+	sb.WriteString(fmt.Sprintf("\n/%s <valoper> - Show last health-check statistic of a validator", commandLast))
 	if updateCtx.isRootUser {
 		sb.WriteString(fmt.Sprintf("\n/%s <chain or valoper> <duration> - Pause a chain or a validator", commandPause))
 	} else {

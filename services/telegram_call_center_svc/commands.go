@@ -7,4 +7,5 @@ const (
 	commandValidators = "validators"
 	commandPause      = "pause"
 	commandStatus     = "status"
+	commandLast       = "last"
 )
