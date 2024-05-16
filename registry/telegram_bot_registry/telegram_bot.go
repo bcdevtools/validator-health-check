@@ -4,6 +4,7 @@ package telegram_bot_registry
 import (
 	libbot "github.com/EscanBE/go-lib/telegram/bot"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/google/uuid"
 	"sort"
 	"sync"
 )
@@ -11,6 +12,7 @@ import (
 type TelegramBots []TelegramBot
 
 type TelegramBot interface {
+	BotID() string
 	GetInnerTelegramBot() *libbot.TelegramBot
 	GetUpdatesChannel() tgbotapi.UpdatesChannel
 	StopReceivingUpdates()
@@ -24,13 +26,19 @@ var _ TelegramBot = &telegramBot{}
 
 type telegramBot struct {
 	sync.RWMutex
+	id       string
 	bot      *libbot.TelegramBot
 	chatIds  map[int64]bool
 	priority bool
 }
 
+func (t *telegramBot) BotID() string {
+	return t.id
+}
+
 func newTelegramBot(bot *libbot.TelegramBot) TelegramBot {
 	return &telegramBot{
+		id:      uuid.New().String(),
 		bot:     bot,
 		chatIds: make(map[int64]bool),
 	}

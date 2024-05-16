@@ -73,11 +73,10 @@ var startCmd = &cobra.Command{
 		go routineHotReload(ctx)
 
 		// Start telegram pusher service
-		telegramPusher := tpsvc.NewTelegramPusher(types.TpContext{
+		logger.Debug("starting telegram pusher service")
+		tpsvc.StartTelegramPusherService(types.TpContext{
 			AppCtx: *ctx,
 		})
-		logger.Debug("starting telegram pusher service")
-		go telegramPusher.Start()
 
 		// Start health-check workers
 		for id := 1; id <= appCfg.WorkerConfig.HealthCheckCount; id++ {
@@ -87,7 +86,7 @@ var startCmd = &cobra.Command{
 			}
 
 			logger.Debug("starting health-check worker", "wid", workerWorkingCtx.WorkerID)
-			go health_check_worker.NewHcWorker(workerWorkingCtx, telegramPusher).Start()
+			go health_check_worker.NewHcWorker(workerWorkingCtx).Start()
 		}
 
 		// end

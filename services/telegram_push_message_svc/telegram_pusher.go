@@ -16,14 +16,7 @@ import (
 	"time"
 )
 
-type TelegramPusher interface {
-	EnqueueMessageWL(tptypes.QueueMessage)
-	Start()
-}
-
-var instanceCount int
-
-var _ TelegramPusher = &telegramPusher{}
+var telePusherSvc *telegramPusher
 
 type telegramPusher struct {
 	sync.RWMutex
@@ -33,19 +26,24 @@ type telegramPusher struct {
 	nonPriorityQueue    []ReceiverBasedQueue
 }
 
-func NewTelegramPusher(tpCtx tptypes.TpContext) TelegramPusher {
-	if instanceCount > 0 {
+func StartTelegramPusherService(tpCtx tptypes.TpContext) {
+	if telePusherSvc != nil {
 		panic("to prevent API limit issue, only one instance of Telegram Pusher is allowed")
 	}
-	instanceCount++
 
-	return &telegramPusher{
+	telePusherSvc = &telegramPusher{
 		ctx:                 &tpCtx,
 		queuesReceiverBased: make(map[int64]ReceiverBasedQueue),
 	}
+
+	go telePusherSvc.start()
 }
 
-func (tp *telegramPusher) EnqueueMessageWL(message tptypes.QueueMessage) {
+func EnqueueMessageWL(message tptypes.QueueMessage) {
+	telePusherSvc.enqueueMessageWL(message)
+}
+
+func (tp *telegramPusher) enqueueMessageWL(message tptypes.QueueMessage) {
 	tp.Lock()
 	defer tp.Unlock()
 
@@ -67,7 +65,7 @@ func (tp *telegramPusher) EnqueueMessageWL(message tptypes.QueueMessage) {
 	existingQueue.EnqueueMessageWL(message)
 }
 
-func (tp *telegramPusher) Start() {
+func (tp *telegramPusher) start() {
 	logger := tp.ctx.AppCtx.Logger
 	defer libapp.TryRecoverAndExecuteExitFunctionIfRecovered(logger)
 
@@ -141,7 +139,7 @@ func (tp *telegramPusher) Start() {
 				if !sent {
 					// re-enqueue
 					for _, message := range messages {
-						tp.EnqueueMessageWL(message)
+						tp.enqueueMessageWL(message)
 					}
 				}
 			}()

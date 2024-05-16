@@ -31,15 +31,13 @@ import (
 
 // Worker represents for a worker, itself holds things needed for doing business logic, especially its own `HcwContext`
 type Worker struct {
-	ctx               *workertypes.HcwContext
-	telegramPusherSvc tpsvc.TelegramPusher
+	ctx *workertypes.HcwContext
 }
 
 // NewHcWorker creates new health-check worker
-func NewHcWorker(wCtx *workertypes.HcwContext, telegramPusherSvc tpsvc.TelegramPusher) Worker {
+func NewHcWorker(wCtx *workertypes.HcwContext) Worker {
 	return Worker{
-		ctx:               wCtx,
-		telegramPusherSvc: telegramPusherSvc,
+		ctx: wCtx,
 	}
 }
 
@@ -107,7 +105,7 @@ func (w Worker) Start() {
 					}
 					message = fmt.Sprintf("%s %s", messagePrefix, message)
 
-					w.telegramPusherSvc.EnqueueMessageWL(tptypes.QueueMessage{
+					tpsvc.EnqueueMessageWL(tptypes.QueueMessage{
 						ReceiverID: userRecord.TelegramConfig.UserId,
 						Priority:   userRecord.Root,
 						Message:    message,

@@ -6,6 +6,7 @@ require (
 	github.com/EscanBE/go-lib v1.1.0
 	github.com/cosmos/cosmos-sdk v0.46.16
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
+	github.com/google/uuid v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.15.0
