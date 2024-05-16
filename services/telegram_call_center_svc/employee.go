@@ -7,6 +7,8 @@ import (
 	tbotreg "github.com/bcdevtools/validator-health-check/registry/telegram_bot_registry"
 	usereg "github.com/bcdevtools/validator-health-check/registry/user_registry"
 	tcctypes "github.com/bcdevtools/validator-health-check/services/telegram_call_center_svc/types"
+	tpsvc "github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc"
+	tptypes "github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc/types"
 	"github.com/pkg/errors"
 	"time"
 )
@@ -72,6 +74,8 @@ func (e *employee) processUpdate(updateCtx *telegramUpdateCtx) error {
 		return e.processCommandChains(updateCtx)
 	case commandValidators:
 		return e.processCommandValidators(updateCtx)
+	case commandPause:
+		return e.processCommandPause(updateCtx)
 	case commandHelp:
 		return e.processCommandHelp(updateCtx)
 	default:
@@ -82,4 +86,20 @@ func (e *employee) processUpdate(updateCtx *telegramUpdateCtx) error {
 func (e *employee) sendResponse(updateCtx *telegramUpdateCtx, msg string) error {
 	_, err := e.telegramBot.GetInnerTelegramBot().SendMessage(msg, updateCtx.chatId())
 	return errors.Wrap(err, "failed to send response")
+}
+
+func (e *employee) enqueueToAllRootUsers(_ *telegramUpdateCtx, msg string, fatal bool) {
+	for _, userRecord := range usereg.GetRootUsersIdentityRL() {
+		userRecord, found := usereg.GetUserRecordByIdentityRL(userRecord)
+		if !found || userRecord.TelegramConfig.IsEmptyOrIncompleteConfig() {
+			continue
+		}
+
+		tpsvc.EnqueueMessageWL(tptypes.QueueMessage{
+			ReceiverID: userRecord.TelegramConfig.UserId,
+			Priority:   true,
+			Fatal:      fatal,
+			Message:    msg,
+		})
+	}
 }

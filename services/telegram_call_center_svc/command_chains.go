@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// processCommandMe processes command /chain
+// processCommandChains processes command /chain
 func (e *employee) processCommandChains(updateCtx *telegramUpdateCtx) error {
 	watchChains := make(map[string]bool)
 	notWatchChains := make(map[string]bool)
@@ -35,6 +35,9 @@ func (e *employee) processCommandChains(updateCtx *telegramUpdateCtx) error {
 	} else {
 		for chainName := range watchChains {
 			sb.WriteString("\n- ")
+			if chainreg.IsChainPausedRL(chainName) {
+				sb.WriteString("(PAUSED) ")
+			}
 			sb.WriteString(chainName)
 		}
 	}
@@ -46,6 +49,9 @@ func (e *employee) processCommandChains(updateCtx *telegramUpdateCtx) error {
 		} else {
 			for chainName := range notWatchChains {
 				sb.WriteString("\n- ")
+				if chainreg.IsChainPausedRL(chainName) {
+					sb.WriteString("(PAUSED) ")
+				}
 				sb.WriteString(chainName)
 			}
 		}

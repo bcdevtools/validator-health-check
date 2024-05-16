@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// processCommandMe processes command /validators
+// processCommandValidators processes command /validators
 func (e *employee) processCommandValidators(updateCtx *telegramUpdateCtx) error {
 	watchChains := make(map[string]map[string]bool)
 	notWatchChains := make(map[string]bool)
@@ -42,8 +42,15 @@ func (e *employee) processCommandValidators(updateCtx *telegramUpdateCtx) error 
 		for chainName, validators := range watchChains {
 			for validator := range validators {
 				sb.WriteString("\n- ")
+				if chainreg.IsValidatorPausedRL(validator) {
+					sb.WriteString("(PAUSED) ")
+				}
 				sb.WriteString(validator)
-				sb.WriteString(fmt.Sprintf(" (%s)", chainName))
+				if chainreg.IsChainPausedRL(chainName) {
+					sb.WriteString(fmt.Sprintf(" (%s - PAUSED)", chainName))
+				} else {
+					sb.WriteString(fmt.Sprintf(" (%s)", chainName))
+				}
 			}
 		}
 	}
@@ -55,6 +62,9 @@ func (e *employee) processCommandValidators(updateCtx *telegramUpdateCtx) error 
 		} else {
 			for chainName := range notWatchChains {
 				sb.WriteString("\n- ")
+				if chainreg.IsChainPausedRL(chainName) {
+					sb.WriteString("(PAUSED) ")
+				}
 				sb.WriteString(chainName)
 			}
 		}
