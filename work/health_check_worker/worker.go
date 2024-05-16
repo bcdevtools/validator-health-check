@@ -118,7 +118,7 @@ func (w Worker) Start() {
 			var healthCheckError error
 			defer func() {
 				if healthCheckError == nil {
-					logger.Debug("health-check successfully")
+					logger.Debug("health-check successfully", "chain", chainName)
 					return
 				}
 
@@ -454,9 +454,9 @@ func (w Worker) Start() {
 							}
 						}
 					}(validator, valoperAddr)
-
-					putCacheValidatorHealthCheckWL(cacheHc)
 				}
+
+				putCacheValidatorHealthCheckWL(cacheHc)
 			}
 
 			// health-check managed RPCs

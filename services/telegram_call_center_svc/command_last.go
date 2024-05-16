@@ -19,7 +19,9 @@ func (e *employee) processCommandLast(updateCtx *telegramUpdateCtx) error {
 
 	cache, has := hcw.GetCacheValidatorHealthCheckRL(args)
 	if !has {
-		sb.WriteString("No health-check data found for the validator, may be not watched by the bot")
+		sb.WriteString("No health-check data found for the validator, reason maybe:")
+		sb.WriteString("\n- Bot have just restarted and no health-check data yet")
+		sb.WriteString("\n- The validator is not registered")
 		return e.sendResponse(updateCtx, sb.String())
 	}
 
