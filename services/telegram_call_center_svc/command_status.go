@@ -3,28 +3,26 @@ package telegram_call_center_svc
 import (
 	chainreg "github.com/bcdevtools/validator-health-check/registry/chain_registry"
 	"strings"
+	"time"
 )
 
 // processCommandStatus processes command /status
 func (e *employee) processCommandStatus(updateCtx *telegramUpdateCtx) error {
 	var sb strings.Builder
 
-	pausedChainsSubscribed := make(map[string]bool)
-	pausedChainsNotSubscribed := make(map[string]bool)
-	pausedValidatorsSubscribed := make(map[string]bool)
-	pausedValidatorsNotSubscribed := make(map[string]bool)
+	pausedChainsSubscribed := make(map[string]time.Time)
+	pausedChainsNotSubscribed := make(map[string]time.Time)
+	pausedValidatorsSubscribed := make(map[string]time.Time)
+	pausedValidatorsNotSubscribed := make(map[string]time.Time)
 
 	allChains := chainreg.GetCopyAllChainConfigsRL()
 	for _, chain := range allChains {
 		chainName := chain.GetChainName()
-		pausedChain := chainreg.IsChainPausedRL(chainName)
+		pausedChain, expiryC := chainreg.IsChainPausedRL(chainName)
 		var subscribedChain bool
 
 		for _, val := range chain.GetValidators() {
-			pausedValidator := chainreg.IsValidatorPausedRL(val.ValidatorOperatorAddress)
-			if !pausedValidator {
-				continue
-			}
+			pausedValidator, expiryV := chainreg.IsValidatorPausedRL(val.ValidatorOperatorAddress)
 
 			var subscribedValidator bool
 			for _, watcherIdentity := range val.WatchersIdentity {
@@ -35,18 +33,20 @@ func (e *employee) processCommandStatus(updateCtx *telegramUpdateCtx) error {
 				}
 			}
 
-			if subscribedValidator {
-				pausedValidatorsSubscribed[val.ValidatorOperatorAddress] = true
-			} else {
-				pausedValidatorsNotSubscribed[val.ValidatorOperatorAddress] = true
+			if pausedValidator {
+				if subscribedValidator {
+					pausedValidatorsSubscribed[val.ValidatorOperatorAddress] = expiryV
+				} else {
+					pausedValidatorsNotSubscribed[val.ValidatorOperatorAddress] = expiryV
+				}
 			}
 		}
 
 		if pausedChain {
 			if subscribedChain {
-				pausedChainsSubscribed[chainName] = true
+				pausedChainsSubscribed[chainName] = expiryC
 			} else {
-				pausedChainsNotSubscribed[chainName] = true
+				pausedChainsNotSubscribed[chainName] = expiryC
 			}
 		}
 	}
@@ -55,9 +55,11 @@ func (e *employee) processCommandStatus(updateCtx *telegramUpdateCtx) error {
 	if len(pausedChainsSubscribed) == 0 {
 		sb.WriteString(" None")
 	} else {
-		for chainName := range pausedChainsSubscribed {
+		for chainName, expiry := range pausedChainsSubscribed {
 			sb.WriteString("\n- ")
 			sb.WriteString(chainName)
+			sb.WriteString(" until ")
+			sb.WriteString(expiry.Format(time.DateTime))
 		}
 	}
 
@@ -65,9 +67,11 @@ func (e *employee) processCommandStatus(updateCtx *telegramUpdateCtx) error {
 	if len(pausedValidatorsSubscribed) == 0 {
 		sb.WriteString(" None")
 	} else {
-		for valoper := range pausedValidatorsSubscribed {
+		for valoper, expiry := range pausedValidatorsSubscribed {
 			sb.WriteString("\n- ")
 			sb.WriteString(valoper)
+			sb.WriteString(" until ")
+			sb.WriteString(expiry.Format(time.DateTime))
 		}
 	}
 
@@ -76,9 +80,11 @@ func (e *employee) processCommandStatus(updateCtx *telegramUpdateCtx) error {
 		if len(pausedChainsNotSubscribed) == 0 {
 			sb.WriteString(" None")
 		} else {
-			for chainName := range pausedChainsNotSubscribed {
+			for chainName, expiry := range pausedChainsNotSubscribed {
 				sb.WriteString("\n- ")
 				sb.WriteString(chainName)
+				sb.WriteString(" until ")
+				sb.WriteString(expiry.Format(time.DateTime))
 			}
 		}
 
@@ -86,9 +92,11 @@ func (e *employee) processCommandStatus(updateCtx *telegramUpdateCtx) error {
 		if len(pausedValidatorsNotSubscribed) == 0 {
 			sb.WriteString(" None")
 		} else {
-			for valoper := range pausedValidatorsNotSubscribed {
+			for valoper, expiry := range pausedValidatorsNotSubscribed {
 				sb.WriteString("\n- ")
 				sb.WriteString(valoper)
+				sb.WriteString(" until ")
+				sb.WriteString(expiry.Format(time.DateTime))
 			}
 		}
 	}

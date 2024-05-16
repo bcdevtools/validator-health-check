@@ -53,7 +53,7 @@ func GetFirstChainConfigForHealthCheckRL(minDurationSinceLastHealthCheck time.Du
 	defer mutex.RUnlock()
 
 	for _, chainConfig := range globalChainNameToChainConfig {
-		if IsChainPausedRL(chainConfig.GetChainName()) {
+		if paused, _ := IsChainPausedRL(chainConfig.GetChainName()); paused {
 			continue
 		}
 		lastHealthCheckUTC := chainConfig.GetLastHealthCheckUtcRL()

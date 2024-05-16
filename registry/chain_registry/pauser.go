@@ -25,12 +25,12 @@ func UnpauseChainWL(chainName string) {
 	delete(pausedChains, chainName)
 }
 
-func IsChainPausedRL(chainName string) bool {
+func IsChainPausedRL(chainName string) (bool, time.Time) {
 	pauserMutex.RLock()
 	defer pauserMutex.RUnlock()
 
 	expiry, paused := pausedChains[chainName]
-	return paused && time.Now().UTC().Before(expiry)
+	return paused && time.Now().UTC().Before(expiry), expiry
 }
 
 func PauseValidatorWL(valoper string, duration time.Duration) time.Time {
@@ -49,12 +49,12 @@ func UnpauseValidatorWL(valoper string) {
 	delete(pausedValidators, valoper)
 }
 
-func IsValidatorPausedRL(valoper string) bool {
+func IsValidatorPausedRL(valoper string) (bool, time.Time) {
 	pauserMutex.RLock()
 	defer pauserMutex.RUnlock()
 
 	expiry, paused := pausedValidators[valoper]
-	return paused && time.Now().UTC().Before(expiry)
+	return paused && time.Now().UTC().Before(expiry), expiry
 }
 
 func init() {

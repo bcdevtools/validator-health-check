@@ -18,6 +18,7 @@ func (e *employee) processCommandHelp(updateCtx *telegramUpdateCtx) error {
 	} else {
 		sb.WriteString(fmt.Sprintf("\n/%s <valoper> <duration> - Pause a validator", commandPause))
 	}
+	sb.WriteString(fmt.Sprintf("\n/%s - Show paused chains and validators", commandStatus))
 	sb.WriteString(fmt.Sprintf("\n/%s - Show this help message", commandHelp))
 
 	return e.sendResponse(updateCtx, sb.String())

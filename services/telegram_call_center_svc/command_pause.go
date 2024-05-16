@@ -108,7 +108,7 @@ func (e *employee) processCommandPauseTryChainForRoot(updateCtx *telegramUpdateC
 			if ultimatePause {
 				return "without release date"
 			} else {
-				return fmt.Sprintf("for %s, until %s", duration.String(), expiry)
+				return fmt.Sprintf("for %s, until %s", duration.String(), expiry.Format(time.DateTime))
 			}
 		}()),
 		true,
@@ -116,7 +116,7 @@ func (e *employee) processCommandPauseTryChainForRoot(updateCtx *telegramUpdateC
 	if ultimatePause {
 		return true, e.sendResponse(updateCtx, fmt.Sprintf("Chain [%s] has been PAUSED without release date", chain))
 	} else {
-		return true, e.sendResponse(updateCtx, fmt.Sprintf("Chain [%s] has been PAUSED for %s, until %s", chain, duration.String(), expiry))
+		return true, e.sendResponse(updateCtx, fmt.Sprintf("Chain [%s] has been PAUSED for %s, until %s", chain, duration.String(), expiry.Format(time.DateTime)))
 	}
 }
 
@@ -153,7 +153,7 @@ func (e *employee) processCommandPauseTryValidator(updateCtx *telegramUpdateCtx,
 		}
 	}
 
-	if !granted {
+	if chainName == "" || !granted {
 		return false, nil
 	}
 
@@ -174,7 +174,7 @@ func (e *employee) processCommandPauseTryValidator(updateCtx *telegramUpdateCtx,
 			if ultimatePause {
 				return "without release date"
 			} else {
-				return fmt.Sprintf("for %s, until %s", duration.String(), expiry)
+				return fmt.Sprintf("for %s, until %s", duration.String(), expiry.Format(time.DateTime))
 			}
 		}()),
 		true,
@@ -183,6 +183,6 @@ func (e *employee) processCommandPauseTryValidator(updateCtx *telegramUpdateCtx,
 	if ultimatePause {
 		return true, e.sendResponse(updateCtx, fmt.Sprintf("Validator [%s] on %s has been PAUSED without release date", valoper, chainName))
 	} else {
-		return true, e.sendResponse(updateCtx, fmt.Sprintf("Validator [%s] on %s has been PAUSED for %s, until %s", valoper, chainName, duration.String(), expiry))
+		return true, e.sendResponse(updateCtx, fmt.Sprintf("Validator [%s] on %s has been PAUSED for %s, until %s", valoper, chainName, duration.String(), expiry.Format(time.DateTime)))
 	}
 }

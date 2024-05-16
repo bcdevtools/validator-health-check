@@ -42,11 +42,11 @@ func (e *employee) processCommandValidators(updateCtx *telegramUpdateCtx) error 
 		for chainName, validators := range watchChains {
 			for validator := range validators {
 				sb.WriteString("\n- ")
-				if chainreg.IsValidatorPausedRL(validator) {
+				if paused, _ := chainreg.IsValidatorPausedRL(validator); paused {
 					sb.WriteString("(PAUSED) ")
 				}
 				sb.WriteString(validator)
-				if chainreg.IsChainPausedRL(chainName) {
+				if paused, _ := chainreg.IsChainPausedRL(chainName); paused {
 					sb.WriteString(fmt.Sprintf(" (%s - PAUSED)", chainName))
 				} else {
 					sb.WriteString(fmt.Sprintf(" (%s)", chainName))
@@ -62,7 +62,7 @@ func (e *employee) processCommandValidators(updateCtx *telegramUpdateCtx) error 
 		} else {
 			for chainName := range notWatchChains {
 				sb.WriteString("\n- ")
-				if chainreg.IsChainPausedRL(chainName) {
+				if paused, _ := chainreg.IsChainPausedRL(chainName); paused {
 					sb.WriteString("(PAUSED) ")
 				}
 				sb.WriteString(chainName)

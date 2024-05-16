@@ -35,7 +35,7 @@ func (e *employee) processCommandChains(updateCtx *telegramUpdateCtx) error {
 	} else {
 		for chainName := range watchChains {
 			sb.WriteString("\n- ")
-			if chainreg.IsChainPausedRL(chainName) {
+			if paused, _ := chainreg.IsChainPausedRL(chainName); paused {
 				sb.WriteString("(PAUSED) ")
 			}
 			sb.WriteString(chainName)
@@ -49,7 +49,7 @@ func (e *employee) processCommandChains(updateCtx *telegramUpdateCtx) error {
 		} else {
 			for chainName := range notWatchChains {
 				sb.WriteString("\n- ")
-				if chainreg.IsChainPausedRL(chainName) {
+				if paused, _ := chainreg.IsChainPausedRL(chainName); paused {
 					sb.WriteString("(PAUSED) ")
 				}
 				sb.WriteString(chainName)

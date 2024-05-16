@@ -195,7 +195,7 @@ func (w Worker) Start() {
 			for _, validator := range registeredChainConfig.GetValidators() {
 				valoperAddr := validator.ValidatorOperatorAddress
 
-				if chainreg.IsValidatorPausedRL(valoperAddr) {
+				if paused, _ := chainreg.IsValidatorPausedRL(valoperAddr); paused {
 					logger.Info("validator paused, skipping health-check", "chain", chainName, "valoper", valoperAddr)
 					continue
 				}
