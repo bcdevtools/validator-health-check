@@ -66,13 +66,9 @@ func (w Worker) Start() {
 			allWatchersIdentity := make([]string, 0)
 			watchersIdentityToUserRecord := make(map[string]config.UserRecord)
 			for _, validator := range registeredChainConfig.GetValidators() {
-				if len(validator.WatchersIdentity) == 0 {
-					continue
-				}
 				for _, identity := range validator.WatchersIdentity {
 					userRecord, found := usereg.GetUserRecordByIdentityRL(identity)
 					if !found {
-						logger.Error("can not mapping watcher identity to user record, user not found", "identity", identity)
 						continue
 					}
 					if userRecord.TelegramConfig.IsEmptyOrIncompleteConfig() {
@@ -441,11 +437,12 @@ func (w Worker) Start() {
 			// health-check managed RPCs
 			if len(registeredChainConfig.GetHealthCheckRPCs()) > 0 {
 				rootUsersIdentity := usereg.GetRootUsersIdentityRL()
-				if len(rootUsersIdentity) == 0 {
-					logger.Error("no root user to report, skipping health-check managed RPCs", "chain", chainName)
+				rootUsersIdentityWatchingThisChain := utils.Collisions(rootUsersIdentity, allWatchersIdentity)
+				if len(rootUsersIdentityWatchingThisChain) == 0 {
+					logger.Info("no root user watching this chain to report, skipping health-check managed RPCs", "chain", chainName)
 				} else {
 					for _, managedRPC := range registeredChainConfig.GetHealthCheckRPCs() {
-						func(managedRPC string, rootUsersIdentity []string) {
+						func(managedRPC string, rootUsersIdentityWatchingThisChain []string) {
 							var errorToReport error
 
 							defer func() {
@@ -453,7 +450,7 @@ func (w Worker) Start() {
 									logger.Error("health-check managed RPC failed", "chain", chainName, "managed_rpc", managedRPC, "error", errorToReport.Error())
 									sendToWatchers := tpsvc.ShouldSendMessageWL(
 										tpsvc.PreventSpammingCaseHealthCheckManagedRPC,
-										rootUsersIdentity,
+										rootUsersIdentityWatchingThisChain,
 										30*time.Minute,
 									)
 									if len(sendToWatchers) > 0 {
@@ -489,7 +486,7 @@ func (w Worker) Start() {
 							if diff := time.Since(resultStatus.SyncInfo.LatestBlockTime.UTC()); diff >= 180*time.Second {
 								errorToReport = fmt.Errorf("managed RPC node is out dated %d, time %v, server time %v, RPC %s", int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC(), managedRPC)
 							}
-						}(managedRPC, rootUsersIdentity)
+						}(managedRPC, rootUsersIdentityWatchingThisChain)
 					}
 				}
 			}
