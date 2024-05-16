@@ -118,7 +118,7 @@ func (w Worker) Start() {
 			var healthCheckError error
 			defer func() {
 				if healthCheckError == nil {
-					logger.Debug("health-check successfully")
+					logger.Debug("health-check successfully", "chain", chainName)
 					return
 				}
 
@@ -194,6 +194,16 @@ func (w Worker) Start() {
 
 			for _, validator := range registeredChainConfig.GetValidators() {
 				valoperAddr := validator.ValidatorOperatorAddress
+
+				if paused, _ := chainreg.IsValidatorPausedRL(valoperAddr); paused {
+					logger.Info("validator paused, skipping health-check", "chain", chainName, "valoper", valoperAddr)
+					continue
+				}
+
+				cacheHc := CacheValidatorHealthCheck{
+					Valoper: valoperAddr,
+				}
+
 				stakingValidator, found := stakingValidatorByValoper[valoperAddr]
 				if !found {
 					enqueueTelegramMessageByIdentity(
@@ -205,20 +215,23 @@ func (w Worker) Start() {
 					continue
 				}
 
+				moniker := stakingValidator.Description.Moniker
+				cacheHc.Moniker = moniker
+
 				switch stakingValidator.Status {
 				case stakingtypes.Bonded:
 					// all good
 				case stakingtypes.Unbonded:
 					enqueueTelegramMessageByIdentity(
 						valoperAddr,
-						"validator is un-bonded! Tombstoned? Contact to unsubscribe this validator",
+						fmt.Sprintf("validator %s is un-bonded! Tombstoned? Contact to unsubscribe this validator", moniker),
 						true,
 						validator.WatchersIdentity...,
 					)
 				case stakingtypes.Unbonding:
 					enqueueTelegramMessageByIdentity(
 						valoperAddr,
-						"validator is unbonding! Fall-out of active set? Jailed?",
+						fmt.Sprintf("validator %s is unbonding! Fall-out of active set? Jailed?", moniker),
 						true,
 						validator.WatchersIdentity...,
 					)
@@ -231,8 +244,11 @@ func (w Worker) Start() {
 					)
 				}
 
+				cacheHc.BondStatus = &stakingValidator.Status
+
 				if errFetchSigningInfo == nil { // skip check if error on fetch, error message informed before
 					valconsAddr, found := valaddreg.GetValconsByValoperRL(chainName, valoperAddr)
+					cacheHc.Valcons = valconsAddr
 					if found {
 						signingInfo, found := valconsToSigningInfo[valconsAddr]
 						if found {
@@ -245,11 +261,13 @@ func (w Worker) Start() {
 								if len(sendToWatchers) > 0 {
 									enqueueTelegramMessageByIdentity(
 										valoperAddr,
-										"Tombstoned! Contact to unsubscribe this validator",
+										fmt.Sprintf("%s is TOMBSTONED! Contact to unsubscribe this validator", moniker),
 										true,
 										sendToWatchers...,
 									)
 								}
+								bTrue := true
+								cacheHc.TomeStoned = &bTrue
 							} else if now := time.Now().UTC(); signingInfo.JailedUntil.After(now) {
 								sendToWatchers := tpsvc.ShouldSendMessageWL(
 									tpsvc.PreventSpammingCaseJailed,
@@ -259,11 +277,14 @@ func (w Worker) Start() {
 								if len(sendToWatchers) > 0 {
 									enqueueTelegramMessageByIdentity(
 										valoperAddr,
-										fmt.Sprintf("Jailed until %s, %f minutes left", signingInfo.JailedUntil, signingInfo.JailedUntil.Sub(now).Minutes()),
+										fmt.Sprintf("%s was Jailed until %s, %f minutes left", moniker, signingInfo.JailedUntil, signingInfo.JailedUntil.Sub(now).Minutes()),
 										true,
 										sendToWatchers...,
 									)
 								}
+								bTrue := true
+								cacheHc.Jailed = &bTrue
+								cacheHc.JailedUntil = &signingInfo.JailedUntil
 							} else {
 								if signingInfo.MissedBlocksCounter > 0 {
 									if slashingParams != nil {
@@ -275,6 +296,7 @@ func (w Worker) Start() {
 												downtimeSlashingWhenMissedExcess =
 													slashingParams.SignedBlocksWindow - slashingParams.MinSignedPerWindow.Mul(sdk.NewDec(slashingParams.SignedBlocksWindow)).Ceil().RoundInt64()
 											}
+											cacheHc.DowntimeSlashingWhenMissedExcess = &downtimeSlashingWhenMissedExcess
 
 											missedBlocksOverDowntimeSlashingRatio := utils.RatioOfInt64(signingInfo.MissedBlocksCounter, downtimeSlashingWhenMissedExcess)
 											if missedBlocksOverDowntimeSlashingRatio > 50.0 {
@@ -287,7 +309,8 @@ func (w Worker) Start() {
 													enqueueTelegramMessageByIdentity(
 														valoperAddr,
 														fmt.Sprintf(
-															"Missed more than half of the allowed blocks in the window, beware of being Jailed. Missed %d/%d, ratio %f%%, window %d blocks",
+															"%s has missed more than half of the allowed blocks in the window, beware of being Jailed. Missed %d/%d, ratio %f%%, window %d blocks",
+															moniker,
 															signingInfo.MissedBlocksCounter,
 															downtimeSlashingWhenMissedExcess,
 															missedBlocksOverDowntimeSlashingRatio,
@@ -307,7 +330,8 @@ func (w Worker) Start() {
 													enqueueTelegramMessageByIdentity(
 														valoperAddr,
 														fmt.Sprintf(
-															"High missed-block-ratio. Missed %d/%d, ratio %f%%, window %d blocks",
+															"%s has high missed-block-ratio. Missed %d/%d, ratio %f%%, window %d blocks",
+															moniker,
 															signingInfo.MissedBlocksCounter,
 															downtimeSlashingWhenMissedExcess,
 															missedBlocksOverDowntimeSlashingRatio,
@@ -338,7 +362,7 @@ func (w Worker) Start() {
 												if len(sendToWatchers) > 0 {
 													enqueueTelegramMessageByIdentity(
 														valoperAddr,
-														fmt.Sprintf("Low uptime %f%%", uptime),
+														fmt.Sprintf("%s has low uptime %f%%", moniker, uptime),
 														fatal,
 														sendToWatchers...,
 													)
@@ -356,11 +380,12 @@ func (w Worker) Start() {
 									} else {
 										enqueueTelegramMessageByIdentity(
 											valoperAddr,
-											"skipped uptime health-check because missing slashing params",
+											fmt.Sprintf("skipped uptime health-check for %s because missing slashing params", moniker),
 											false,
 											validator.WatchersIdentity...,
 										)
 									}
+									cacheHc.MissedBlockCount = &signingInfo.MissedBlocksCounter
 								} else {
 									logger.Debug("no missed block", "chain", chainName, "valoper", valoperAddr, "signing-info", signingInfo)
 								}
@@ -368,7 +393,7 @@ func (w Worker) Start() {
 						} else {
 							enqueueTelegramMessageByIdentity(
 								valoperAddr,
-								fmt.Sprintf("validator signing info could not be found, valcons: %s", valconsAddr),
+								fmt.Sprintf("validator %s signing info could not be found, valcons: %s", moniker, valconsAddr),
 								false,
 								validator.WatchersIdentity...,
 							)
@@ -377,7 +402,7 @@ func (w Worker) Start() {
 					} else {
 						enqueueTelegramMessageByIdentity(
 							valoperAddr,
-							"validator consensus address not found in mapping",
+							fmt.Sprintf("validator %s consensus address not found in mapping", moniker),
 							false,
 							validator.WatchersIdentity...,
 						)
@@ -410,19 +435,19 @@ func (w Worker) Start() {
 
 						rpcClient, err := rpcreg.GetRpcClientByEndpointWL(validator.OptionalHealthCheckRPC, logger)
 						if err != nil {
-							errorToReport = errors.Wrapf(err, "failed to get RPC client to direct health-check validator %s: %s", valoperAddr, validator.OptionalHealthCheckRPC)
+							errorToReport = errors.Wrapf(err, "failed to get RPC client to direct health-check validator %s: %s", moniker, validator.OptionalHealthCheckRPC)
 						} else {
 							resultStatus, err := utils.Retry(func() (*coretypes.ResultStatus, error) {
 								return rpcClient.GetWebsocketClient().Status(context.Background())
 							})
 							if err != nil {
-								errorToReport = errors.Wrapf(err, "failed to get status from direct health-check validator %s: %s", valoperAddr, validator.OptionalHealthCheckRPC)
+								errorToReport = errors.Wrapf(err, "failed to get status from direct health-check validator %s: %s", moniker, validator.OptionalHealthCheckRPC)
 							} else {
 								if resultStatus.SyncInfo.CatchingUp {
-									errorToReport = fmt.Errorf("validator %s is catching up, block %d, time %v", valoperAddr, resultStatus.SyncInfo.LatestBlockHeight, resultStatus.SyncInfo.LatestBlockTime)
+									errorToReport = fmt.Errorf("validator %s is catching up, block %d, time %v", moniker, resultStatus.SyncInfo.LatestBlockHeight, resultStatus.SyncInfo.LatestBlockTime)
 									fatal = true
 								} else if diff := time.Since(resultStatus.SyncInfo.LatestBlockTime.UTC()); diff > 30*time.Second {
-									errorToReport = fmt.Errorf("validator is out dated %d, time %v, server time %v", int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC())
+									errorToReport = fmt.Errorf("validator %s is out dated %d, time %v, server time %v", moniker, int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC())
 									ignoreIfLastSentLessThan = 10 * time.Minute
 									fatal = true
 								}
@@ -430,6 +455,8 @@ func (w Worker) Start() {
 						}
 					}(validator, valoperAddr)
 				}
+
+				putCacheValidatorHealthCheckWL(cacheHc)
 			}
 
 			// health-check managed RPCs

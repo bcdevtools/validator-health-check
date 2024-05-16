@@ -10,8 +10,8 @@ import (
 	chainreg "github.com/bcdevtools/validator-health-check/registry/chain_registry"
 	tbotreg "github.com/bcdevtools/validator-health-check/registry/telegram_bot_registry"
 	usereg "github.com/bcdevtools/validator-health-check/registry/user_registry"
+	tcsvc "github.com/bcdevtools/validator-health-check/services/telegram_call_center_svc"
 	tpsvc "github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc"
-	"github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc/types"
 	"github.com/bcdevtools/validator-health-check/utils"
 	"github.com/bcdevtools/validator-health-check/work/health_check_worker"
 	workertypes "github.com/bcdevtools/validator-health-check/work/health_check_worker/types"
@@ -57,6 +57,7 @@ var startCmd = &cobra.Command{
 		libapp.RegisterExitFunction(func(params ...any) {
 			// finalize
 			defer waitGroup.Done()
+			defer close(tbotreg.ChannelNewBot)
 
 			// Implements close connection, resources,... here to prevent resource leak
 			safeShutdownTelegram(ctx)
@@ -74,9 +75,11 @@ var startCmd = &cobra.Command{
 
 		// Start telegram pusher service
 		logger.Debug("starting telegram pusher service")
-		tpsvc.StartTelegramPusherService(types.TpContext{
-			AppCtx: *ctx,
-		})
+		tpsvc.StartTelegramPusherService(*ctx)
+
+		// Start telegram call center service
+		logger.Debug("starting telegram call center service")
+		tcsvc.StartTelegramCallCenterService(*ctx)
 
 		// Start health-check workers
 		for id := 1; id <= appCfg.WorkerConfig.HealthCheckCount; id++ {

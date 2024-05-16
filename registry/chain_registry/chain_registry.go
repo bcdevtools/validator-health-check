@@ -53,6 +53,9 @@ func GetFirstChainConfigForHealthCheckRL(minDurationSinceLastHealthCheck time.Du
 	defer mutex.RUnlock()
 
 	for _, chainConfig := range globalChainNameToChainConfig {
+		if paused, _ := IsChainPausedRL(chainConfig.GetChainName()); paused {
+			continue
+		}
 		lastHealthCheckUTC := chainConfig.GetLastHealthCheckUtcRL()
 		if time.Since(lastHealthCheckUTC) >= minDurationSinceLastHealthCheck {
 			chainConfig.SetLastHealthCheckUtcWL() // prevent double health-check
@@ -61,4 +64,27 @@ func GetFirstChainConfigForHealthCheckRL(minDurationSinceLastHealthCheck time.Du
 	}
 
 	return nil
+}
+
+// GetCopyAllChainConfigsRL returns a copy of all chain configs.
+func GetCopyAllChainConfigsRL() []RegisteredChainConfig {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
+	result := make([]RegisteredChainConfig, len(globalChainNameToChainConfig))
+	idx := 0
+	for _, chainConfig := range globalChainNameToChainConfig {
+		result[idx] = chainConfig
+		idx++
+	}
+
+	return result
+}
+
+func HasChainRL(chainName string) bool {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
+	_, found := globalChainNameToChainConfig[chainName]
+	return found
 }

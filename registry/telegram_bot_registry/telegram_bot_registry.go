@@ -11,6 +11,7 @@ import (
 var mutex sync.RWMutex
 var globalTelegramBotByToken map[string]TelegramBot
 var shuttingDown bool
+var ChannelNewBot = make(chan TelegramBot)
 
 func GetTelegramBotByTokenWL(token string, logger logging.Logger) (TelegramBot, error) {
 	if token == "" {
@@ -46,6 +47,9 @@ func GetTelegramBotByTokenWL(token string, logger logging.Logger) (TelegramBot, 
 	bot = newTelegramBot(_bot)
 
 	globalTelegramBotByToken[token] = bot
+
+	ChannelNewBot <- bot
+
 	return bot, nil
 }
 
