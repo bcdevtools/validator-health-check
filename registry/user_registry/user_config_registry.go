@@ -14,6 +14,10 @@ func UpdateUsersConfigWL(userRecords config.UserRecords) error {
 		return err
 	}
 
+	if len(userRecords) < 1 {
+		return nil
+	}
+
 	mutex.Lock()
 	defer mutex.Unlock()
 

@@ -15,6 +15,10 @@ func UpdateChainsConfigWL(chainConfigs config.ChainsConfig, usersConfig *config.
 		return err
 	}
 
+	if len(chainConfigs) < 1 {
+		return nil
+	}
+
 	mutex.Lock()
 	defer mutex.Unlock()
 
