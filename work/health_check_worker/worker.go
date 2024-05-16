@@ -482,12 +482,12 @@ func (w Worker) Start() {
 							}
 
 							if resultStatus.SyncInfo.CatchingUp {
-								errorToReport = fmt.Errorf("managed RPC node is catching up, block %d, time %v", resultStatus.SyncInfo.LatestBlockHeight, resultStatus.SyncInfo.LatestBlockTime)
+								errorToReport = fmt.Errorf("managed RPC node is catching up, block %d, time %v, RPC %s", resultStatus.SyncInfo.LatestBlockHeight, resultStatus.SyncInfo.LatestBlockTime, managedRPC)
 								return
 							}
 
 							if diff := time.Since(resultStatus.SyncInfo.LatestBlockTime.UTC()); diff >= 180*time.Second {
-								errorToReport = fmt.Errorf("managed RPC node is out dated %d, time %v, server time %v", int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC())
+								errorToReport = fmt.Errorf("managed RPC node is out dated %d, time %v, server time %v, RPC %s", int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC(), managedRPC)
 							}
 						}(managedRPC, rootUsersIdentity)
 					}
