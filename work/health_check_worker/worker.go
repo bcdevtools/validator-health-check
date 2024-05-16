@@ -72,7 +72,8 @@ func (w Worker) Start() {
 				for _, identity := range validator.WatchersIdentity {
 					userRecord, found := usereg.GetUserRecordByIdentityRL(identity)
 					if !found {
-						panic(fmt.Sprintf("user not found, weird! identity: %s", identity))
+						logger.Error("can not mapping watcher identity to user record, user not found", "identity", identity)
+						continue
 					}
 					if userRecord.TelegramConfig.IsEmptyOrIncompleteConfig() {
 						panic(fmt.Sprintf("telegram config is empty or incomplete, weird! identity: %s", identity))
@@ -96,7 +97,8 @@ func (w Worker) Start() {
 				for _, identity := range identities {
 					userRecord, found := watchersIdentityToUserRecord[identity]
 					if !found {
-						panic(fmt.Sprintf("user not found, weird! identity: %s", identity))
+						logger.Error("can not enqueue telegram message, user not found", "validator", validator, "chain", chainName, "fatal", fatal, "identity", identity, "message", message)
+						continue
 					}
 
 					var messagePrefix string
