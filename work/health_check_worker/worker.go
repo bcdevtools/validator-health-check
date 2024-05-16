@@ -132,9 +132,9 @@ func (w Worker) Start() {
 			}()
 
 			// get the most healthy RPC
-			rpcClient, mostHealthyEndpoint, latestBlockTime, errFetchSigningInfo := getMostHealthyRpc(registeredChainConfig.GetRPCs(), registeredChainConfig.GetChainId(), logger)
-			if errFetchSigningInfo != nil {
-				healthCheckError = errors.Wrap(errFetchSigningInfo, "failed to get most healthy RPC")
+			rpcClient, mostHealthyEndpoint, latestBlockTime, errFetchHealthyRpc := getMostHealthyRpc(registeredChainConfig.GetRPCs(), registeredChainConfig.GetChainId(), logger)
+			if errFetchHealthyRpc != nil {
+				healthCheckError = errors.Wrap(errFetchHealthyRpc, "failed to get most healthy RPC")
 				return
 			}
 
@@ -151,18 +151,18 @@ func (w Worker) Start() {
 			registeredChainConfig.InformPriorityLatestHealthyRpcWL(mostHealthyEndpoint)
 
 			// fetch all validators
-			validators, errFetchSigningInfo := getAllValidators(rpcClient)
-			if errFetchSigningInfo != nil {
-				healthCheckError = errors.Wrap(errFetchSigningInfo, "failed to get all validators")
+			stakingValidators, errFetchStakingValidators := getAllValidators(rpcClient)
+			if errFetchStakingValidators != nil {
+				healthCheckError = errors.Wrap(errFetchStakingValidators, "failed to get all validators")
 				return
 			}
 			stakingValidatorByValoper := make(map[string]stakingtypes.Validator)
-			for _, validator := range validators {
+			for _, validator := range stakingValidators {
 				stakingValidatorByValoper[validator.OperatorAddress] = validator
 			}
 
 			// reload mapping
-			w.reloadMappingValAddressIfNeeded(registeredChainConfig, validators)
+			w.reloadMappingValAddressIfNeeded(registeredChainConfig, stakingValidators)
 
 			// fetch all signingInfos
 			signingInfos, errFetchSigningInfo := getAllSigningInfos(rpcClient)
@@ -368,6 +368,7 @@ func (w Worker) Start() {
 													)
 												}
 											}
+											cacheHc.Uptime = &uptime
 
 											logger.Debug(
 												"validator health-check information",
