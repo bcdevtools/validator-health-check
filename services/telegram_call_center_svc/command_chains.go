@@ -7,33 +7,39 @@ import (
 
 // processCommandChains processes command /chain
 func (e *employee) processCommandChains(updateCtx *telegramUpdateCtx) error {
-	watchChains := make(map[string]bool)
-	notWatchChains := make(map[string]bool)
+	watchChainsSorted := make([]string, 0)
+	notWatchChainsSorted := make([]string, 0)
 
-	allChains := chainreg.GetCopyAllChainConfigsRL()
-	for _, chain := range allChains {
+	allChainsSorted := chainreg.GetCopyAllChainConfigsRL().Sort()
+	for _, chain := range allChainsSorted {
 		chainName := chain.GetChainName()
+		var watch bool
 		for _, val := range chain.GetValidators() {
 			for _, watcherIdentity := range val.WatchersIdentity {
 				if watcherIdentity == updateCtx.identity {
-					watchChains[chainName] = true
+					watch = true
 					break
 				}
 			}
-		}
-		if updateCtx.isRootUser {
-			if _, watch := watchChains[chain.GetChainName()]; !watch {
-				notWatchChains[chainName] = true
+
+			if watch {
+				break
 			}
+		}
+
+		if watch {
+			watchChainsSorted = append(watchChainsSorted, chainName)
+		} else {
+			notWatchChainsSorted = append(notWatchChainsSorted, chainName)
 		}
 	}
 
 	var sb strings.Builder
 	sb.WriteString("Chains you subscribed:")
-	if len(watchChains) == 0 {
+	if len(watchChainsSorted) == 0 {
 		sb.WriteString(" None")
 	} else {
-		for chainName := range watchChains {
+		for _, chainName := range watchChainsSorted {
 			sb.WriteString("\n- ")
 			if paused, _ := chainreg.IsChainPausedRL(chainName); paused {
 				sb.WriteString("(PAUSED) ")
@@ -42,12 +48,12 @@ func (e *employee) processCommandChains(updateCtx *telegramUpdateCtx) error {
 		}
 	}
 
-	if updateCtx.isRootUser && len(notWatchChains) > 0 {
+	if updateCtx.isRootUser && len(notWatchChainsSorted) > 0 {
 		sb.WriteString("\n\n(Root) Chains you not subscribed:")
-		if len(notWatchChains) == 0 {
+		if len(notWatchChainsSorted) == 0 {
 			sb.WriteString(" None")
 		} else {
-			for chainName := range notWatchChains {
+			for _, chainName := range notWatchChainsSorted {
 				sb.WriteString("\n- ")
 				if paused, _ := chainreg.IsChainPausedRL(chainName); paused {
 					sb.WriteString("(PAUSED) ")

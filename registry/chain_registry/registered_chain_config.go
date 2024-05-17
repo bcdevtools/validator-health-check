@@ -3,6 +3,7 @@ package chain_registry
 import (
 	"github.com/bcdevtools/validator-health-check/config"
 	"github.com/bcdevtools/validator-health-check/utils"
+	"sort"
 	"sync"
 	"time"
 )
@@ -18,6 +19,8 @@ type RegisteredChainConfig interface {
 	GetLastHealthCheckUtcRL() time.Time
 	SetLastHealthCheckUtcWL()
 }
+
+type RegisteredChainsConfig []RegisteredChainConfig
 
 var _ RegisteredChainConfig = &registeredChainConfig{}
 
@@ -129,4 +132,22 @@ func (r *registeredChainConfig) SetLastHealthCheckUtcWL() {
 	defer r.Unlock()
 
 	r.lastHealthCheckUtc = time.Now().UTC()
+}
+
+func (rs RegisteredChainsConfig) Sort() RegisteredChainsConfig {
+	sort.Slice(rs, func(i, j int) bool {
+		left := rs[i]
+		right := rs[j]
+
+		if left.IsPriority() == right.IsPriority() {
+			return left.GetChainName() < right.GetChainName()
+		}
+
+		if left.IsPriority() {
+			return true
+		} else {
+			return false
+		}
+	})
+	return rs
 }

@@ -52,18 +52,16 @@ func (e *employee) processCommandLast(updateCtx *telegramUpdateCtx) error {
 		sb.WriteString(fmt.Sprintf("%.2f%%", *cache.Uptime))
 	}
 	if cache.BondStatus != nil {
-		sb.WriteString("\nBondStatus: ")
+		sb.WriteString("\nBond status: ")
 		sb.WriteString(cache.BondStatus.String())
 	}
-	if cache.MissedBlockCount != nil && cache.DowntimeSlashingWhenMissedExcess != nil {
-		sb.WriteString("\nMissedBlockCount: ")
-		sb.WriteString(fmt.Sprintf("%d/%d", *cache.MissedBlockCount, *cache.DowntimeSlashingWhenMissedExcess))
-	} else if cache.MissedBlockCount != nil {
-		sb.WriteString("\nMissedBlockCount: ")
-		sb.WriteString(fmt.Sprintf("%d", *cache.MissedBlockCount))
-	} else if cache.DowntimeSlashingWhenMissedExcess != nil {
-		sb.WriteString("\nDowntimeSlashingWhenMissedExcess: ")
-		sb.WriteString(fmt.Sprintf("%d", *cache.DowntimeSlashingWhenMissedExcess))
+	if cache.MissedBlockCount != nil {
+		sb.WriteString("\nMissed blocks: ")
+		if cache.DowntimeSlashingWhenMissedExcess != nil {
+			sb.WriteString(fmt.Sprintf("%d/%d", *cache.MissedBlockCount, *cache.DowntimeSlashingWhenMissedExcess))
+		} else {
+			sb.WriteString(fmt.Sprintf("%d", *cache.MissedBlockCount))
+		}
 	}
 
 	sb.WriteString("\nLast updated: ")
