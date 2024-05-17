@@ -9,4 +9,5 @@ const (
 	commandStatus     = "status"
 	commandLast       = "last"
 	commandSearch     = "search"
+	commandSilent     = "silent"
 )
