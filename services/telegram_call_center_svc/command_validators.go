@@ -8,19 +8,21 @@ import (
 
 // processCommandValidators processes command /validators
 func (e *employee) processCommandValidators(updateCtx *telegramUpdateCtx) error {
-	watchChains := make(map[string]map[string]bool)
-	notWatchChains := make(map[string]bool)
+	watchValidatorOnChains := make(map[string]map[string]bool)
+	watchChainsSorted := make([]string, 0)
+	notWatchChainsSorted := make([]string, 0)
 
-	allChains := chainreg.GetCopyAllChainConfigsRL()
-	for _, chain := range allChains {
+	allChainsSorted := chainreg.GetCopyAllChainConfigsRL().Sort()
+	for _, chain := range allChainsSorted {
 		chainName := chain.GetChainName()
 		for _, val := range chain.GetValidators() {
 			for _, watcherIdentity := range val.WatchersIdentity {
 				if watcherIdentity == updateCtx.identity {
-					watchValidators, exists := watchChains[chainName]
+					watchValidators, exists := watchValidatorOnChains[chainName]
 					if !exists {
 						watchValidators = make(map[string]bool)
-						watchChains[chainName] = watchValidators
+						watchValidatorOnChains[chainName] = watchValidators
+						watchChainsSorted = append(watchChainsSorted, chainName)
 					}
 					watchValidators[val.ValidatorOperatorAddress] = true
 					break
@@ -28,20 +30,20 @@ func (e *employee) processCommandValidators(updateCtx *telegramUpdateCtx) error 
 			}
 		}
 		if updateCtx.isRootUser {
-			if _, watch := watchChains[chainName]; !watch {
-				notWatchChains[chainName] = true
+			if _, watch := watchValidatorOnChains[chainName]; !watch {
+				notWatchChainsSorted = append(notWatchChainsSorted, chainName)
 			}
 		}
 	}
 
 	var sb strings.Builder
 	sb.WriteString("Validators you subscribed:")
-	if len(watchChains) == 0 {
+	if len(watchValidatorOnChains) == 0 {
 		sb.WriteString(" None")
 	} else {
-		for chainName, validators := range watchChains {
-			for validator := range validators {
-				sb.WriteString("\n- ")
+		for _, chainName := range watchChainsSorted {
+			for validator := range watchValidatorOnChains[chainName] {
+				sb.WriteString("\n\n- ")
 				if paused, _ := chainreg.IsValidatorPausedRL(validator); paused {
 					sb.WriteString("(PAUSED) ")
 				}
@@ -55,12 +57,12 @@ func (e *employee) processCommandValidators(updateCtx *telegramUpdateCtx) error 
 		}
 	}
 
-	if updateCtx.isRootUser && len(notWatchChains) > 0 {
+	if updateCtx.isRootUser && len(notWatchChainsSorted) > 0 {
 		sb.WriteString("\n\n(Root) Chains you not subscribed:")
-		if len(notWatchChains) == 0 {
+		if len(notWatchChainsSorted) == 0 {
 			sb.WriteString(" None")
 		} else {
-			for chainName := range notWatchChains {
+			for _, chainName := range notWatchChainsSorted {
 				sb.WriteString("\n- ")
 				if paused, _ := chainreg.IsChainPausedRL(chainName); paused {
 					sb.WriteString("(PAUSED) ")
