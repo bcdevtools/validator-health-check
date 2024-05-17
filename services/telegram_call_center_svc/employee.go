@@ -80,6 +80,8 @@ func (e *employee) processUpdate(updateCtx *telegramUpdateCtx) error {
 		return e.processCommandStatus(updateCtx)
 	case commandLast:
 		return e.processCommandLast(updateCtx)
+	case commandSearch:
+		return e.processCommandSearch(updateCtx)
 	case commandHelp:
 		return e.processCommandHelp(updateCtx)
 	default:
