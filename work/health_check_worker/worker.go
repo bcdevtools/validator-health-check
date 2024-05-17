@@ -256,7 +256,12 @@ func (w Worker) Start() {
 				case stakingtypes.Unbonding:
 					enqueueTelegramMessageByIdentity(
 						valoperAddr,
-						fmt.Sprintf("validator %s is unbonding! Fall-out of active set? Jailed?", moniker),
+						fmt.Sprintf("validator %s is unbonding! Fall-out of active set? Was jailed?%s", moniker, func() string {
+							if rank == 0 {
+								return ""
+							}
+							return fmt.Sprintf(" Rank %d.", rank)
+						}()),
 						true,
 						validator.WatchersIdentity...,
 					)
