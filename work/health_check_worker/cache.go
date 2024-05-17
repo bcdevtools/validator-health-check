@@ -13,6 +13,7 @@ type CacheValidatorHealthCheck struct {
 	Valoper                          string
 	Valcons                          string
 	Moniker                          string
+	Rank                             int
 	BondStatus                       *stakingtypes.BondStatus
 	TomeStoned                       *bool
 	Jailed                           *bool

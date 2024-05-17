@@ -190,6 +190,26 @@ func (w Worker) Start() {
 				)
 			}
 
+			// prepare ranking
+			sort.Slice(stakingValidators, func(i, j int) bool {
+				left := stakingValidators[i]
+				right := stakingValidators[j]
+
+				if left.IsBonded() == right.IsBonded() {
+					return left.Tokens.GT(right.Tokens)
+				}
+
+				if left.IsBonded() {
+					return true
+				} else {
+					return false
+				}
+			})
+			valoperToRank := make(map[string]int)
+			for i, validator := range stakingValidators {
+				valoperToRank[validator.OperatorAddress] = i + 1
+			}
+
 			// health-check each validator
 
 			for _, validator := range registeredChainConfig.GetValidators() {
@@ -213,6 +233,11 @@ func (w Worker) Start() {
 						validator.WatchersIdentity...,
 					)
 					continue
+				}
+
+				rank, found := valoperToRank[valoperAddr]
+				if found {
+					cacheHc.Rank = rank
 				}
 
 				moniker := stakingValidator.Description.Moniker
