@@ -73,10 +73,10 @@ func (e *employee) processCommandPause(updateCtx *telegramUpdateCtx) error {
 
 	if updateCtx.isRootUser {
 		sb.WriteString("No chain or validator found with the provided identifier!")
-		sb.WriteString(fmt.Sprintf("\nSee the list at /%s or /%s", commandChains, commandValidators))
+		sb.WriteString(fmt.Sprintf("\nSee the list at /%s or /%s or use /%s", commandChains, commandValidators, commandSearch))
 	} else {
 		sb.WriteString("No validator found with the provided identifier!")
-		sb.WriteString(fmt.Sprintf("\nSee the list at /%s", commandValidators))
+		sb.WriteString(fmt.Sprintf("\nSee the list at /%s or use /%s", commandValidators, commandSearch))
 	}
 
 	return e.sendResponse(updateCtx, sb.String())

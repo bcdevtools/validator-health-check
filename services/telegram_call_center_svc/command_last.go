@@ -22,6 +22,7 @@ func (e *employee) processCommandLast(updateCtx *telegramUpdateCtx) error {
 		sb.WriteString("No health-check data found for the validator, reason maybe:")
 		sb.WriteString("\n- Bot have just restarted and no health-check data yet")
 		sb.WriteString("\n- The validator is not registered")
+		sb.WriteString(fmt.Sprintf("\n- The provided address is invalid, use /%s to list or /%s by part of address", commandValidators, commandSearch))
 		return e.sendResponse(updateCtx, sb.String())
 	}
 
