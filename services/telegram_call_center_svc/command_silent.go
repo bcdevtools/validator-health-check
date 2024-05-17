@@ -35,12 +35,12 @@ func (e *employee) processCommandSilent(updateCtx *telegramUpdateCtx) error {
 
 		pattern = strings.TrimSpace(spl[1])
 
-		part := spl[1]
+		part := spl[0]
 		switch part {
 		case "0", "0s":
 			duration = nil // un-silent
 		default:
-			dur, err := time.ParseDuration(spl[1])
+			dur, err := time.ParseDuration(part)
 			if err != nil {
 				sb.WriteString("Invalid duration format!")
 				return e.sendResponse(updateCtx, sb.String())

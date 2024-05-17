@@ -38,7 +38,7 @@ func (e *employee) processCommandPause(updateCtx *telegramUpdateCtx) error {
 		case "0", "0s":
 			duration = nil // unpause
 		default:
-			dur, err := time.ParseDuration(spl[1])
+			dur, err := time.ParseDuration(part)
 			if err != nil {
 				sb.WriteString("Invalid duration format!")
 				return e.sendResponse(updateCtx, sb.String())
