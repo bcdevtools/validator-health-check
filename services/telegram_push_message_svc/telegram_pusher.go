@@ -109,11 +109,26 @@ func (tp *telegramPusher) start() {
 		}
 
 		receiverId := firstNonEmptyQueue.GetReceiverId()
-		messages := firstNonEmptyQueue.DequeueMessagesWL(constants.BATCH_SIZE_TELEGRAM_PUSH_PER_USER)
-		if len(messages) < 1 {
+		dequeuedMessages := firstNonEmptyQueue.DequeueMessagesWL(constants.BATCH_SIZE_TELEGRAM_PUSH_PER_USER)
+		if len(dequeuedMessages) < 1 {
 			logger.Error("unexpected no message", "receiver-id", receiverId)
 			continue
 		}
+
+		var messages []tptypes.QueueMessage
+
+		for _, message := range dequeuedMessages {
+			if shouldSilentByChatIdRWL(receiverId, message.Message) {
+				logger.Info("silenced message", "receiver-id", receiverId, "message", message.Message)
+				continue
+			}
+			messages = append(messages, message)
+		}
+
+		if len(messages) < 1 {
+			continue
+		}
+
 		sort.Slice(messages, func(i, j int) bool {
 			left := messages[i]
 			right := messages[j]

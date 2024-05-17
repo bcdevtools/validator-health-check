@@ -7,8 +7,8 @@ import (
 
 // processCommandHelp processes command /help
 func (e *employee) processCommandHelp(updateCtx *telegramUpdateCtx) error {
-
 	var sb strings.Builder
+
 	sb.WriteString("Available commands:")
 	sb.WriteString(fmt.Sprintf("\n/%s - Show your user information", commandMe))
 	sb.WriteString(fmt.Sprintf("\n/%s - Show chains you subscribed", commandChains))
@@ -21,6 +21,7 @@ func (e *employee) processCommandHelp(updateCtx *telegramUpdateCtx) error {
 	}
 	sb.WriteString(fmt.Sprintf("\n/%s - Show paused chains and validators", commandStatus))
 	sb.WriteString(fmt.Sprintf("\n/%s - Search for a validator by part of it address", commandSearch))
+	// do not show /silent command
 	sb.WriteString(fmt.Sprintf("\n/%s - Show this help message", commandHelp))
 
 	return e.sendResponse(updateCtx, sb.String())
