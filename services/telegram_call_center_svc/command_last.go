@@ -39,6 +39,10 @@ func (e *employee) processCommandLast(updateCtx *telegramUpdateCtx) error {
 
 	sb.WriteString("Moniker: ")
 	sb.WriteString(cache.Moniker)
+	if cache.Rank > 0 {
+		sb.WriteString("\nRank: ")
+		sb.WriteString(fmt.Sprintf("%d", cache.Rank))
+	}
 	sb.WriteString("\nValoper: ")
 	sb.WriteString(cache.Valoper)
 	sb.WriteString("\nValcons: ")

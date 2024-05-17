@@ -132,9 +132,9 @@ func (w Worker) Start() {
 			}()
 
 			// get the most healthy RPC
-			rpcClient, mostHealthyEndpoint, latestBlockTime, errFetchSigningInfo := getMostHealthyRpc(registeredChainConfig.GetRPCs(), registeredChainConfig.GetChainId(), logger)
-			if errFetchSigningInfo != nil {
-				healthCheckError = errors.Wrap(errFetchSigningInfo, "failed to get most healthy RPC")
+			rpcClient, mostHealthyEndpoint, latestBlockTime, errFetchHealthyRpc := getMostHealthyRpc(registeredChainConfig.GetRPCs(), registeredChainConfig.GetChainId(), logger)
+			if errFetchHealthyRpc != nil {
+				healthCheckError = errors.Wrap(errFetchHealthyRpc, "failed to get most healthy RPC")
 				return
 			}
 
@@ -151,18 +151,18 @@ func (w Worker) Start() {
 			registeredChainConfig.InformPriorityLatestHealthyRpcWL(mostHealthyEndpoint)
 
 			// fetch all validators
-			validators, errFetchSigningInfo := getAllValidators(rpcClient)
-			if errFetchSigningInfo != nil {
-				healthCheckError = errors.Wrap(errFetchSigningInfo, "failed to get all validators")
+			stakingValidators, errFetchStakingValidators := getAllValidators(rpcClient)
+			if errFetchStakingValidators != nil {
+				healthCheckError = errors.Wrap(errFetchStakingValidators, "failed to get all validators")
 				return
 			}
 			stakingValidatorByValoper := make(map[string]stakingtypes.Validator)
-			for _, validator := range validators {
+			for _, validator := range stakingValidators {
 				stakingValidatorByValoper[validator.OperatorAddress] = validator
 			}
 
 			// reload mapping
-			w.reloadMappingValAddressIfNeeded(registeredChainConfig, validators)
+			w.reloadMappingValAddressIfNeeded(registeredChainConfig, stakingValidators)
 
 			// fetch all signingInfos
 			signingInfos, errFetchSigningInfo := getAllSigningInfos(rpcClient)
@@ -190,6 +190,26 @@ func (w Worker) Start() {
 				)
 			}
 
+			// prepare ranking
+			sort.Slice(stakingValidators, func(i, j int) bool {
+				left := stakingValidators[i]
+				right := stakingValidators[j]
+
+				if left.IsBonded() == right.IsBonded() {
+					return left.Tokens.GT(right.Tokens)
+				}
+
+				if left.IsBonded() {
+					return true
+				} else {
+					return false
+				}
+			})
+			valoperToRank := make(map[string]int)
+			for i, validator := range stakingValidators {
+				valoperToRank[validator.OperatorAddress] = i + 1
+			}
+
 			// health-check each validator
 
 			for _, validator := range registeredChainConfig.GetValidators() {
@@ -215,6 +235,11 @@ func (w Worker) Start() {
 					continue
 				}
 
+				rank, found := valoperToRank[valoperAddr]
+				if found {
+					cacheHc.Rank = rank
+				}
+
 				moniker := stakingValidator.Description.Moniker
 				cacheHc.Moniker = moniker
 
@@ -231,7 +256,12 @@ func (w Worker) Start() {
 				case stakingtypes.Unbonding:
 					enqueueTelegramMessageByIdentity(
 						valoperAddr,
-						fmt.Sprintf("validator %s is unbonding! Fall-out of active set? Jailed?", moniker),
+						fmt.Sprintf("validator %s is unbonding! Fall-out of active set? Was jailed?%s", moniker, func() string {
+							if rank == 0 {
+								return ""
+							}
+							return fmt.Sprintf(" Rank %d.", rank)
+						}()),
 						true,
 						validator.WatchersIdentity...,
 					)
@@ -368,6 +398,7 @@ func (w Worker) Start() {
 													)
 												}
 											}
+											cacheHc.Uptime = &uptime
 
 											logger.Debug(
 												"validator health-check information",
