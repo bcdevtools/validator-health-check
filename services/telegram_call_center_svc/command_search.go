@@ -60,7 +60,6 @@ func (e *employee) processCommandSearch(updateCtx *telegramUpdateCtx) error {
 			if !watch {
 				sb.WriteString(" (not subscribed)")
 			}
-			break
 		}
 	}
 
