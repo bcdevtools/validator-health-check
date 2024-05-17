@@ -67,7 +67,7 @@ func (e *employee) processCommandLast(updateCtx *telegramUpdateCtx) error {
 
 	sb.WriteString("\nLast updated: ")
 	sb.WriteString(cache.TimeOccurs.Format(time.DateTime))
-	sb.WriteString(fmt.Sprintf(" (%s ago)", time.Since(cache.TimeOccurs).String()))
+	sb.WriteString(fmt.Sprintf(" (%.2f ago)", time.Since(cache.TimeOccurs).Seconds()))
 
 	return e.sendResponse(updateCtx, sb.String())
 }
