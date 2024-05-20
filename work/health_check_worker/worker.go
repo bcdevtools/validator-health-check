@@ -549,89 +549,94 @@ func (w Worker) Start() {
 				}
 			}
 
-			// fetch the latest gov on voting period
-			latestProposalIdOnVotingPeriod, err := getLatestGovV1ProposalOnVotingPeriod(rpcClient)
-			if err != nil {
-				enqueueTelegramMessageByIdentity(
-					"",
-					fmt.Sprintf("failed to get latest proposal on voting period, error: %s", err.Error()),
-					false,
-					allWatchersIdentity...,
-				)
-			} else if latestProposalIdOnVotingPeriod != nil && *latestProposalIdOnVotingPeriod > 0 {
-				proposalId := *latestProposalIdOnVotingPeriod
+			// check validator voting governance
+			if lastCheck := getLastCheckGovByChainRL(chainName); time.Since(lastCheck) > 2*time.Hour {
+				// fetch the latest gov on voting period
+				latestProposalIdOnVotingPeriod, err := getLatestGovV1ProposalOnVotingPeriod(rpcClient)
+				if err != nil {
+					enqueueTelegramMessageByIdentity(
+						"",
+						fmt.Sprintf("failed to get latest proposal on voting period, error: %s", err.Error()),
+						false,
+						allWatchersIdentity...,
+					)
+				} else if latestProposalIdOnVotingPeriod != nil && *latestProposalIdOnVotingPeriod > 0 {
+					proposalId := *latestProposalIdOnVotingPeriod
 
-				for _, validator := range registeredChainConfig.GetValidators() {
-					valoperAddr := validator.ValidatorOperatorAddress
+					putCacheLastCheckGovByChainWL(chainName)
 
-					if paused, _ := chainreg.IsValidatorPausedRL(valoperAddr); paused {
-						logger.Info("validator paused, skipping checking gov", "chain", chainName, "valoper", valoperAddr)
-						continue
-					}
+					for _, validator := range registeredChainConfig.GetValidators() {
+						valoperAddr := validator.ValidatorOperatorAddress
 
-					if !isVotedGovLessThan(valoperAddr, proposalId) {
-						continue
-					}
-
-					addr, found := valaddreg.GetAddressByValoperRL(valoperAddr)
-					if !found {
-						addrHrp, success := utils.GetAddrHrpFromValoperHrp(valoperAddr)
-						if !success {
-							panic(fmt.Sprintf("failed to get account address hrp from valoper hrp, weird! valoper: %s", valoperAddr))
+						if paused, _ := chainreg.IsValidatorPausedRL(valoperAddr); paused {
+							logger.Info("validator paused, skipping checking gov", "chain", chainName, "valoper", valoperAddr)
+							continue
 						}
 
-						_, bzAddr, err := bech32.DecodeAndConvert(valoperAddr)
+						if !isVotedGovLessThan(valoperAddr, proposalId) {
+							continue
+						}
+
+						addr, found := valaddreg.GetAddressByValoperRL(valoperAddr)
+						if !found {
+							addrHrp, success := utils.GetAddrHrpFromValoperHrp(valoperAddr)
+							if !success {
+								panic(fmt.Sprintf("failed to get account address hrp from valoper hrp, weird! valoper: %s", valoperAddr))
+							}
+
+							_, bzAddr, err := bech32.DecodeAndConvert(valoperAddr)
+							if err != nil {
+								panic(errors.Wrapf(err, "failed to decode valoper address, weird! valoper: %s", valoperAddr))
+							}
+
+							addr, err = bech32.ConvertAndEncode(addrHrp, bzAddr)
+							if err != nil {
+								panic(errors.Wrapf(err, "failed to convert and encode address, weird! valoper: %s, next HRP: %s", valoperAddr, addrHrp))
+							}
+
+							valaddreg.RegisterPairValAddressToAddressWL(valoperAddr, addr)
+						}
+
+						latestVotedByValidator, err := getLatestVotedGovV1ProposalOnVotingPeriod(rpcClient, addr)
 						if err != nil {
-							panic(errors.Wrapf(err, "failed to decode valoper address, weird! valoper: %s", valoperAddr))
-						}
-
-						addr, err = bech32.ConvertAndEncode(addrHrp, bzAddr)
-						if err != nil {
-							panic(errors.Wrapf(err, "failed to convert and encode address, weird! valoper: %s, next HRP: %s", valoperAddr, addrHrp))
-						}
-
-						valaddreg.RegisterPairValAddressToAddressWL(valoperAddr, addr)
-					}
-
-					latestVotedByValidator, err := getLatestVotedGovV1ProposalOnVotingPeriod(rpcClient, addr)
-					if err != nil {
-						enqueueTelegramMessageByIdentity(
-							valoperAddr,
-							fmt.Sprintf("failed to get latest voted proposal on voting period, error: %s", err.Error()),
-							false,
-							validator.WatchersIdentity...,
-						)
-						continue
-					}
-
-					var govSuggestionMessageToBeSent string
-					if latestVotedByValidator == nil {
-						govSuggestionMessageToBeSent = fmt.Sprintf(
-							"Proposal %d is on Voting period, validator %s need to participate",
-							proposalId, valoperAddr,
-						)
-					} else {
-						if *latestVotedByValidator < proposalId {
-							govSuggestionMessageToBeSent = fmt.Sprintf(
-								"Proposal %d is on Voting period, validator %s needs to participate. Latest voted %d",
-								proposalId, valoperAddr, *latestVotedByValidator,
-							)
-						}
-						putCacheVotedGovWL(valoperAddr, *latestVotedByValidator)
-					}
-					if len(govSuggestionMessageToBeSent) > 0 {
-						sendToWatchers := tpsvc.ShouldSendMessageWL(
-							tpsvc.PreventSpammingCaseNotVotedGovernance,
-							validator.WatchersIdentity,
-							12*time.Hour,
-						)
-						if len(sendToWatchers) > 0 {
 							enqueueTelegramMessageByIdentity(
 								valoperAddr,
-								govSuggestionMessageToBeSent,
+								fmt.Sprintf("failed to get latest voted proposal on voting period, error: %s", err.Error()),
 								false,
-								sendToWatchers...,
+								validator.WatchersIdentity...,
 							)
+							continue
+						}
+
+						var govSuggestionMessageToBeSent string
+						if latestVotedByValidator == nil {
+							govSuggestionMessageToBeSent = fmt.Sprintf(
+								"Proposal %d is on Voting period, validator %s need to participate",
+								proposalId, valoperAddr,
+							)
+						} else {
+							if *latestVotedByValidator < proposalId {
+								govSuggestionMessageToBeSent = fmt.Sprintf(
+									"Proposal %d is on Voting period, validator %s needs to participate. Latest voted %d",
+									proposalId, valoperAddr, *latestVotedByValidator,
+								)
+							}
+							putCacheVotedGovWL(valoperAddr, *latestVotedByValidator)
+						}
+						if len(govSuggestionMessageToBeSent) > 0 {
+							sendToWatchers := tpsvc.ShouldSendMessageWL(
+								tpsvc.PreventSpammingCaseNotVotedGovernance,
+								validator.WatchersIdentity,
+								12*time.Hour,
+							)
+							if len(sendToWatchers) > 0 {
+								enqueueTelegramMessageByIdentity(
+									valoperAddr,
+									govSuggestionMessageToBeSent,
+									false,
+									sendToWatchers...,
+								)
+							}
 						}
 					}
 				}
