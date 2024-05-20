@@ -249,7 +249,7 @@ func (w Worker) Start() {
 				case stakingtypes.Unbonded:
 					enqueueTelegramMessageByIdentity(
 						valoperAddr,
-						fmt.Sprintf("validator %s is un-bonded! Tombstoned? Contact to unsubscribe this validator", moniker),
+						fmt.Sprintf("validator %s is un-bonded! Tombstoned? Use command /%s to temporary pause health-checking this validator", moniker, constants.CommandPause),
 						true,
 						validator.WatchersIdentity...,
 					)
@@ -291,7 +291,7 @@ func (w Worker) Start() {
 								if len(sendToWatchers) > 0 {
 									enqueueTelegramMessageByIdentity(
 										valoperAddr,
-										fmt.Sprintf("%s is TOMBSTONED! Contact to unsubscribe this validator", moniker),
+										fmt.Sprintf("%s is TOMBSTONED! Contact to unsubscribing this validator", moniker),
 										true,
 										sendToWatchers...,
 									)

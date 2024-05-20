@@ -2,6 +2,7 @@ package telegram_call_center_svc
 
 import (
 	"fmt"
+	"github.com/bcdevtools/validator-health-check/constants"
 	chainreg "github.com/bcdevtools/validator-health-check/registry/chain_registry"
 	"strings"
 	"time"
@@ -15,10 +16,10 @@ func (e *employee) processCommandPause(updateCtx *telegramUpdateCtx) error {
 	if len(args) == 0 {
 		if updateCtx.isRootUser {
 			sb.WriteString("Please provide a chain or a validator to pause!")
-			sb.WriteString(fmt.Sprintf("\nSee the list at /%s or /%s", commandChains, commandValidators))
+			sb.WriteString(fmt.Sprintf("\nSee the list at /%s or /%s", constants.CommandChains, constants.CommandValidators))
 		} else {
 			sb.WriteString("Please provide a validator to pause!")
-			sb.WriteString(fmt.Sprintf("\nSee the list at /%s", commandValidators))
+			sb.WriteString(fmt.Sprintf("\nSee the list at /%s", constants.CommandValidators))
 		}
 		return e.sendResponse(updateCtx, sb.String())
 	}
@@ -73,10 +74,10 @@ func (e *employee) processCommandPause(updateCtx *telegramUpdateCtx) error {
 
 	if updateCtx.isRootUser {
 		sb.WriteString("No chain or validator found with the provided identifier!")
-		sb.WriteString(fmt.Sprintf("\nSee the list at /%s or /%s or use /%s", commandChains, commandValidators, commandSearch))
+		sb.WriteString(fmt.Sprintf("\nSee the list at /%s or /%s or use /%s", constants.CommandChains, constants.CommandValidators, constants.CommandSearch))
 	} else {
 		sb.WriteString("No validator found with the provided identifier!")
-		sb.WriteString(fmt.Sprintf("\nSee the list at /%s or use /%s", commandValidators, commandSearch))
+		sb.WriteString(fmt.Sprintf("\nSee the list at /%s or use /%s", constants.CommandValidators, constants.CommandSearch))
 	}
 
 	return e.sendResponse(updateCtx, sb.String())

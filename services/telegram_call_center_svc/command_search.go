@@ -2,6 +2,7 @@ package telegram_call_center_svc
 
 import (
 	"fmt"
+	"github.com/bcdevtools/validator-health-check/constants"
 	chainreg "github.com/bcdevtools/validator-health-check/registry/chain_registry"
 	"strings"
 )
@@ -13,7 +14,7 @@ func (e *employee) processCommandSearch(updateCtx *telegramUpdateCtx) error {
 	args := strings.TrimSpace(strings.ToLower(updateCtx.commandArgs()))
 	if len(args) == 0 {
 		sb.WriteString("Please provide a part of the validator operator address you want to search for!")
-		sb.WriteString(fmt.Sprintf("\n? Use /%s to list all validators", commandValidators))
+		sb.WriteString(fmt.Sprintf("\n? Use /%s to list all validators", constants.CommandValidators))
 		return e.sendResponse(updateCtx, sb.String())
 	}
 

@@ -2,6 +2,7 @@ package telegram_call_center_svc
 
 import (
 	"fmt"
+	"github.com/bcdevtools/validator-health-check/constants"
 	tpsvc "github.com/bcdevtools/validator-health-check/services/telegram_push_message_svc"
 	"strings"
 	"time"
@@ -29,7 +30,7 @@ func (e *employee) processCommandSilent(updateCtx *telegramUpdateCtx) error {
 		spl := strings.SplitN(args, " ", 2)
 		if len(spl) != 2 {
 			sb.WriteString("Invalid arguments!")
-			sb.WriteString(fmt.Sprintf("\n\nUsage: /%s <duration> <pattern>", commandSilent))
+			sb.WriteString(fmt.Sprintf("\n\nUsage: /%s <duration> <pattern>", constants.CommandSilent))
 			return e.sendResponse(updateCtx, sb.String())
 		}
 

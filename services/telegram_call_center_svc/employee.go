@@ -4,6 +4,7 @@ import (
 	"fmt"
 	libapp "github.com/EscanBE/go-lib/app"
 	"github.com/bcdevtools/validator-health-check/config"
+	"github.com/bcdevtools/validator-health-check/constants"
 	tbotreg "github.com/bcdevtools/validator-health-check/registry/telegram_bot_registry"
 	usereg "github.com/bcdevtools/validator-health-check/registry/user_registry"
 	tcctypes "github.com/bcdevtools/validator-health-check/services/telegram_call_center_svc/types"
@@ -68,23 +69,23 @@ func (e *employee) processUpdate(updateCtx *telegramUpdateCtx) error {
 	}
 
 	switch updateCtx.command() {
-	case commandMe:
+	case constants.CommandMe:
 		return e.processCommandMe(updateCtx)
-	case commandChains:
+	case constants.CommandChains:
 		return e.processCommandChains(updateCtx)
-	case commandValidators:
+	case constants.CommandValidators:
 		return e.processCommandValidators(updateCtx)
-	case commandPause:
+	case constants.CommandPause:
 		return e.processCommandPause(updateCtx)
-	case commandStatus:
+	case constants.CommandStatus:
 		return e.processCommandStatus(updateCtx)
-	case commandLast:
+	case constants.CommandLast:
 		return e.processCommandLast(updateCtx)
-	case commandSearch:
+	case constants.CommandSearch:
 		return e.processCommandSearch(updateCtx)
-	case commandSilent:
+	case constants.CommandSilent:
 		return e.processCommandSilent(updateCtx)
-	case commandHelp:
+	case constants.CommandHelp:
 		return e.processCommandHelp(updateCtx)
 	default:
 		return e.processCommandHelp(updateCtx)
