@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-var cacheMutex sync.RWMutex
+var cacheHcMutex sync.RWMutex
 var cacheValidatorHealthCheck map[string]CacheValidatorHealthCheck
 
 type CacheValidatorHealthCheck struct {
@@ -26,16 +26,16 @@ type CacheValidatorHealthCheck struct {
 }
 
 func putCacheValidatorHealthCheckWL(cache CacheValidatorHealthCheck) {
-	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
+	cacheHcMutex.Lock()
+	defer cacheHcMutex.Unlock()
 
 	cache.TimeOccurs = time.Now().UTC()
 	cacheValidatorHealthCheck[cache.Valoper] = cache
 }
 
 func GetCacheValidatorHealthCheckRL(valoper string) (CacheValidatorHealthCheck, bool) {
-	cacheMutex.RLock()
-	defer cacheMutex.RUnlock()
+	cacheHcMutex.RLock()
+	defer cacheHcMutex.RUnlock()
 
 	cache, found := cacheValidatorHealthCheck[valoper]
 	return cache, found

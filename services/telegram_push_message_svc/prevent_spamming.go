@@ -14,6 +14,7 @@ const (
 	PreventSpammingCaseMissedBlocksOverDangerousThreshold
 	PreventSpammingCaseDirectHealthCheckOptionalRPC
 	PreventSpammingCaseHealthCheckManagedRPC
+	PreventSpammingCaseNotVotedGovernance
 )
 
 var mutexRwPreventSpamming sync.RWMutex

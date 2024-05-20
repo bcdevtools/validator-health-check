@@ -10,6 +10,7 @@ var mutex sync.RWMutex
 var (
 	globalValoperToValcons map[string]map[string]string // chainName -> [valoper -> valcons]
 	globalValconsToValoper map[string]map[string]string // chainName -> [valcons -> valoper]
+	globalValoperToAddress map[string]string            // valoper -> address
 )
 
 func RegisterPairValAddressWL(chainName string, valoper string, valcons string) {
@@ -27,6 +28,13 @@ func RegisterPairValAddressWL(chainName string, valoper string, valcons string) 
 	globalValconsToValoper[chainName][valcons] = valoper
 }
 
+func RegisterPairValAddressToAddressWL(valoper string, addr string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	globalValoperToAddress[valoper] = addr
+}
+
 func GetValconsByValoperRL(chainName string, valoper string) (valcons string, found bool) {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -41,7 +49,16 @@ func GetValconsByValoperRL(chainName string, valoper string) (valcons string, fo
 	return
 }
 
+func GetAddressByValoperRL(valoper string) (addr string, found bool) {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
+	addr, found = globalValoperToAddress[valoper]
+	return
+}
+
 func init() {
 	globalValoperToValcons = make(map[string]map[string]string)
 	globalValconsToValoper = make(map[string]map[string]string)
+	globalValoperToAddress = make(map[string]string)
 }

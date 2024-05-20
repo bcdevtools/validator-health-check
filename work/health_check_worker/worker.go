@@ -19,7 +19,9 @@ import (
 	"github.com/bcdevtools/validator-health-check/utils"
 	workertypes "github.com/bcdevtools/validator-health-check/work/health_check_worker/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/cosmos/cosmos-sdk/types/query"
+	govv1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/pkg/errors"
@@ -249,7 +251,7 @@ func (w Worker) Start() {
 				case stakingtypes.Unbonded:
 					enqueueTelegramMessageByIdentity(
 						valoperAddr,
-						fmt.Sprintf("validator %s is un-bonded! Tombstoned? Use command /%s to temporary pause health-checking this validator", moniker, constants.CommandPause),
+						fmt.Sprintf("validator %s is un-bonded! Tombstoned?\nUse [/%s %s] to pause health-checking this validator", moniker, constants.CommandPause, valoperAddr),
 						true,
 						validator.WatchersIdentity...,
 					)
@@ -546,6 +548,94 @@ func (w Worker) Start() {
 					}
 				}
 			}
+
+			// fetch the latest gov on voting period
+			latestProposalIdOnVotingPeriod, err := getLatestGovV1ProposalOnVotingPeriod(rpcClient)
+			if err != nil {
+				enqueueTelegramMessageByIdentity(
+					"",
+					fmt.Sprintf("failed to get latest proposal on voting period, error: %s", err.Error()),
+					false,
+					allWatchersIdentity...,
+				)
+			} else if latestProposalIdOnVotingPeriod != nil && *latestProposalIdOnVotingPeriod > 0 {
+				proposalId := *latestProposalIdOnVotingPeriod
+
+				for _, validator := range registeredChainConfig.GetValidators() {
+					valoperAddr := validator.ValidatorOperatorAddress
+
+					if paused, _ := chainreg.IsValidatorPausedRL(valoperAddr); paused {
+						logger.Info("validator paused, skipping checking gov", "chain", chainName, "valoper", valoperAddr)
+						continue
+					}
+
+					if !isVotedGovLessThan(valoperAddr, proposalId) {
+						continue
+					}
+
+					addr, found := valaddreg.GetAddressByValoperRL(valoperAddr)
+					if !found {
+						addrHrp, success := utils.GetAddrHrpFromValoperHrp(valoperAddr)
+						if !success {
+							panic(fmt.Sprintf("failed to get account address hrp from valoper hrp, weird! valoper: %s", valoperAddr))
+						}
+
+						_, bzAddr, err := bech32.DecodeAndConvert(valoperAddr)
+						if err != nil {
+							panic(errors.Wrapf(err, "failed to decode valoper address, weird! valoper: %s", valoperAddr))
+						}
+
+						addr, err = bech32.ConvertAndEncode(addrHrp, bzAddr)
+						if err != nil {
+							panic(errors.Wrapf(err, "failed to convert and encode address, weird! valoper: %s, next HRP: %s", valoperAddr, addrHrp))
+						}
+
+						valaddreg.RegisterPairValAddressToAddressWL(valoperAddr, addr)
+					}
+
+					latestVotedByValidator, err := getLatestVotedGovV1ProposalOnVotingPeriod(rpcClient, addr)
+					if err != nil {
+						enqueueTelegramMessageByIdentity(
+							valoperAddr,
+							fmt.Sprintf("failed to get latest voted proposal on voting period, error: %s", err.Error()),
+							false,
+							validator.WatchersIdentity...,
+						)
+						continue
+					}
+
+					var govSuggestionMessageToBeSent string
+					if latestVotedByValidator == nil {
+						govSuggestionMessageToBeSent = fmt.Sprintf(
+							"Proposal %d is on Voting period, validator %s need to participate",
+							proposalId, valoperAddr,
+						)
+					} else {
+						if *latestVotedByValidator < proposalId {
+							govSuggestionMessageToBeSent = fmt.Sprintf(
+								"Proposal %d is on Voting period, validator %s needs to participate. Latest voted %d",
+								proposalId, valoperAddr, *latestVotedByValidator,
+							)
+						}
+						putCacheVotedGovWL(valoperAddr, *latestVotedByValidator)
+					}
+					if len(govSuggestionMessageToBeSent) > 0 {
+						sendToWatchers := tpsvc.ShouldSendMessageWL(
+							tpsvc.PreventSpammingCaseNotVotedGovernance,
+							validator.WatchersIdentity,
+							12*time.Hour,
+						)
+						if len(sendToWatchers) > 0 {
+							enqueueTelegramMessageByIdentity(
+								valoperAddr,
+								govSuggestionMessageToBeSent,
+								false,
+								sendToWatchers...,
+							)
+						}
+					}
+				}
+			}
 		}(registeredChainConfig)
 	}
 }
@@ -828,4 +918,88 @@ func getMostHealthyRpc(rpc []string, chainId string, logger logging.Logger) (rpc
 	}
 
 	return rpcClient, mostHealthyRPC.endpoint, mostHealthyRPC.latestBlockTime, nil
+}
+
+func getLatestGovV1ProposalOnVotingPeriod(rpcClient rpcreg.RpcClient) (*uint64, error) {
+	reqV1 := govv1.QueryProposalsRequest{
+		ProposalStatus: govv1.ProposalStatus_PROPOSAL_STATUS_VOTING_PERIOD,
+		Pagination: &query.PageRequest{
+			Limit:   1,
+			Reverse: true,
+		},
+	}
+
+	proposals, err := getGovV1Proposal(rpcClient, reqV1)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(proposals) == 0 {
+		return nil, nil
+	}
+
+	proposalId := proposals[0].Id
+	return &proposalId, nil
+}
+
+func getLatestVotedGovV1ProposalOnVotingPeriod(rpcClient rpcreg.RpcClient, voter string) (*uint64, error) {
+	reqV1 := govv1.QueryProposalsRequest{
+		ProposalStatus: govv1.ProposalStatus_PROPOSAL_STATUS_VOTING_PERIOD,
+		Voter:          voter,
+		Pagination: &query.PageRequest{
+			Limit:   1,
+			Reverse: true,
+		},
+	}
+
+	proposals, err := getGovV1Proposal(rpcClient, reqV1)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(proposals) == 0 {
+		return nil, nil
+	}
+
+	proposalId := proposals[0].Id
+	return &proposalId, nil
+}
+
+func getGovV1Proposal(
+	rpcClient rpcreg.RpcClient,
+	reqV1 govv1.QueryProposalsRequest,
+) ([]*govv1.Proposal, error) {
+	bz, err := reqV1.Marshal()
+	if err != nil {
+		panic(errors.Wrap(err, "failed to marshal request, weird!"))
+	}
+
+	queryGovV1ProposalsResponse, err := utils.Retry[*govv1.QueryProposalsResponse](func() (*govv1.QueryProposalsResponse, error) {
+		resultABCIQuery, err := rpcClient.GetWebsocketClient().ABCIQuery(context.Background(), "/cosmos.gov.v1.Query/Proposals", bz)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(resultABCIQuery.Response.Value) == 0 {
+			return nil, fmt.Errorf("empty response value, weird")
+		}
+
+		queryParamResponse := &govv1.QueryProposalsResponse{}
+		err = queryParamResponse.Unmarshal(resultABCIQuery.Response.Value)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to unmarshal response, weird!")
+		}
+
+		return queryParamResponse, nil
+	})
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query gov v1 proposals")
+	}
+
+	if queryGovV1ProposalsResponse == nil {
+		return nil, errors.New("empty response, weird!")
+	}
+
+	return queryGovV1ProposalsResponse.Proposals, nil
 }
