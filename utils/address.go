@@ -22,3 +22,23 @@ func GetValconsHrpFromValoperHrp(valoper string) (valconsHrp string, success boo
 	success = true
 	return
 }
+
+// GetAddrHrpFromValoperHrp predicts normal account address hrp from valoper hrp
+func GetAddrHrpFromValoperHrp(valoper string) (addrHrp string, success bool) {
+	lastIndex1 := strings.LastIndex(valoper, "1")
+	if lastIndex1 < 0 {
+		return "", false
+	}
+	if lastIndex1 == 0 {
+		return "", false
+	}
+
+	valoperHrp := valoper[:lastIndex1]
+	if !strings.HasSuffix(valoperHrp, "valoper") {
+		return "", false
+	}
+
+	addrHrp = valoperHrp[:len(valoperHrp)-len("valoper")]
+	success = true
+	return
+}
