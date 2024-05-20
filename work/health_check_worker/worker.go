@@ -251,7 +251,7 @@ func (w Worker) Start() {
 				case stakingtypes.Unbonded:
 					enqueueTelegramMessageByIdentity(
 						valoperAddr,
-						fmt.Sprintf("validator %s is un-bonded! Tombstoned? Use command /%s to temporary pause health-checking this validator", moniker, constants.CommandPause),
+						fmt.Sprintf("validator %s is un-bonded! Tombstoned?\nUse [/%s %s] to pause health-checking this validator", moniker, constants.CommandPause, valoperAddr),
 						true,
 						validator.WatchersIdentity...,
 					)
@@ -613,7 +613,7 @@ func (w Worker) Start() {
 					} else {
 						if *latestVotedByValidator < proposalId {
 							govSuggestionMessageToBeSent = fmt.Sprintf(
-								"Proposal %d is on Voting period, validator %s need to participate. Latest voted %d",
+								"Proposal %d is on Voting period, validator %s needs to participate. Latest voted %d",
 								proposalId, valoperAddr, *latestVotedByValidator,
 							)
 						}
