@@ -141,10 +141,10 @@ func (w Worker) Start() {
 			}
 
 			logger.Debug("most healthy RPC", "chain", chainName, "endpoint", mostHealthyEndpoint, "latest_block_time", latestBlockTime)
-			if time.Since(latestBlockTime) > constants.INFORM_TELEGRAM_IF_BLOCK_OLDER_THAN {
+			if outdated := time.Since(latestBlockTime); outdated > constants.INFORM_TELEGRAM_IF_BLOCK_OLDER_THAN {
 				enqueueTelegramMessageByIdentity(
 					"",
-					fmt.Sprintf("latest block time of the most health RPC is too old: %s, diff %s", latestBlockTime, time.Since(latestBlockTime)),
+					fmt.Sprintf("latest block time of the most healthy RPC is too old: %s, diff %s", latestBlockTime, outdated),
 					false,
 					allWatchersIdentity...,
 				)
@@ -883,7 +883,6 @@ func getMostHealthyRpc(rpc []string, chainId string, logger logging.Logger) (rpc
 
 			scoredRPC.latestBlock = resultStatus.SyncInfo.LatestBlockHeight
 			scoredRPC.latestBlockTime = resultStatus.SyncInfo.LatestBlockTime
-			return
 		}(r)
 	}
 
