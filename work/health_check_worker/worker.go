@@ -480,7 +480,7 @@ func (w Worker) Start() {
 									errorToReport = fmt.Errorf("validator %s is catching up, block %d, time %v", moniker, resultStatus.SyncInfo.LatestBlockHeight, resultStatus.SyncInfo.LatestBlockTime)
 									fatal = true
 								} else if diff := time.Since(resultStatus.SyncInfo.LatestBlockTime.UTC()); diff > 30*time.Second {
-									errorToReport = fmt.Errorf("validator %s is out dated %d, time %v, server time %v", moniker, int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC())
+									errorToReport = fmt.Errorf("validator %s is out dated %s, time %v, server time %v", moniker, explainDuration(diff), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC())
 									ignoreIfLastSentLessThan = 10 * time.Minute
 									fatal = true
 								}
@@ -542,7 +542,7 @@ func (w Worker) Start() {
 							}
 
 							if diff := time.Since(resultStatus.SyncInfo.LatestBlockTime.UTC()); diff >= 180*time.Second {
-								errorToReport = fmt.Errorf("managed RPC node is out dated %d, time %v, server time %v, RPC %s", int64(diff.Seconds()), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC(), managedRPC)
+								errorToReport = fmt.Errorf("managed RPC node is out dated %s, time %v, server time %v, RPC %s", explainDuration(diff), resultStatus.SyncInfo.LatestBlockTime, time.Now().UTC(), managedRPC)
 							}
 						}(managedRPC, rootUsersIdentityWatchingThisChain)
 					}
@@ -1006,4 +1006,30 @@ func getGovV1Proposal(
 	}
 
 	return queryGovV1ProposalsResponse.Proposals, nil
+}
+
+func explainDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+
+	if d < 10*time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+
+	if d < 2*time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+
+	var sb strings.Builder
+
+	hours := int(d.Hours())
+	sb.WriteString(fmt.Sprintf("%dh", hours))
+	if dh := time.Duration(hours) * time.Hour; d > dh {
+		if dm := d - dh; dm >= time.Minute {
+			sb.WriteString(fmt.Sprintf("%dm", int(dm.Minutes())))
+		}
+	}
+
+	return sb.String()
 }
